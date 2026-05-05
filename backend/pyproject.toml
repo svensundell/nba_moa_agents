@@ -1,0 +1,59 @@
+[project]
+name = "nba-moa-agents"
+version = "0.1.0"
+description = "Mixture of Agents system for NBA news, stats, and daily briefings"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Sven Juge" }]
+
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.6.0",
+    "python-dotenv>=1.0.1",
+    "httpx>=0.27.2",
+    "websockets>=13.1",
+    # LangGraph + LLM
+    "langgraph>=0.2.50",
+    "langchain-core>=0.3.20",
+    "langchain-groq>=0.2.1",
+    # MCP client
+    "mcp>=1.0.0",
+    "langchain-mcp-adapters>=0.0.3",
+    # Utilities
+    "loguru>=0.7.2",
+    "python-dateutil>=2.9.0",
+    "tenacity>=9.0.0",
+    "feedparser>=6.0.11",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "pytest-cov>=5.0.0",
+    "ruff>=0.7.0",
+    "mypy>=1.13.0",
+    "httpx>=0.27.2",
+]
+
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "B", "UP", "RUF"]
+ignore = ["E501"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
