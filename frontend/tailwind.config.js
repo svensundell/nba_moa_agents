@@ -4,11 +4,11 @@ export default {
   theme: {
     extend: {
       colors: {
-        ink: "#0b0d12",
-        panel: "#11151c",
-        border: "#1f2530",
-        accent: "#f59e0b",
-        muted: "#7c8597",
+        ink: "#f7f8fa",
+        panel: "#ffffff",
+        border: "#e5e7eb",
+        accent: "#f28c28",
+        muted: "#4b5563",
       },
       fontFamily: {
         sans: ["Inter", "ui-sans-serif", "system-ui"],

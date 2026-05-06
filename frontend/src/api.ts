@@ -46,6 +46,11 @@ export interface AgentMeta {
   description: string;
 }
 
+export interface ChatMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 const base = "/api";
 
 export async function fetchAgents(): Promise<AgentMeta[]> {
@@ -80,6 +85,7 @@ export type StreamFrame =
 export interface RunOptions {
   mode: "brief" | "query" | "compare";
   query?: string;
+  messages?: ChatMessage[];
   date?: string | null;
   onFrame: (frame: StreamFrame) => void;
 }
@@ -94,6 +100,7 @@ export function streamRun(opts: RunOptions): { close: () => void } {
       JSON.stringify({
         mode: opts.mode,
         query: opts.query ?? "",
+        messages: opts.messages ?? [],
         date: opts.date ?? null,
       }),
     );

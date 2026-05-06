@@ -55,7 +55,7 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
         name="open_query",
         model_id="deepseek/deepseek-v4-pro",
         temperature=0.2,
-        description="High-accuracy tool-using model for Ask Anything queries.",
+        description="High-accuracy tool-using model for NBA Copilot.",
     ),
 }
 
@@ -105,6 +105,6 @@ AGENT_MODELS: dict[str, str] = {
     "editor": "balanced",
     # Comparison baseline
     "single_llm_baseline": "balanced",
-    # Ask Anything
-    "ask_anything": "open_query",
+    # NBA Copilot (query mode)
+    "nba_copilot": "open_query",
 }

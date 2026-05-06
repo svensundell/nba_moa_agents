@@ -3,18 +3,18 @@ import type { AgentEvent } from "../api";
 import clsx from "clsx";
 
 const LAYER_COLOR: Record<string, string> = {
-  proposer: "text-amber-300",
-  refiner: "text-sky-300",
-  aggregator: "text-emerald-300",
-  system: "text-slate-400",
+  proposer: "text-amber-700",
+  refiner: "text-sky-700",
+  aggregator: "text-emerald-700",
+  system: "text-slate-500",
 };
 
 const TYPE_BADGE: Record<string, string> = {
-  tool: "bg-fuchsia-600/20 text-fuchsia-200 border-fuchsia-600/30",
-  done: "bg-emerald-600/15 text-emerald-200 border-emerald-600/30",
-  error: "bg-red-600/20 text-red-200 border-red-600/40",
-  start: "bg-slate-600/20 text-slate-200 border-slate-600/30",
-  chunk: "bg-slate-600/10 text-slate-300 border-slate-600/20",
+  tool: "bg-amber-50 text-amber-700 border-amber-200",
+  done: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  error: "bg-red-50 text-red-700 border-red-200",
+  start: "bg-slate-100 text-slate-700 border-slate-200",
+  chunk: "bg-slate-50 text-slate-600 border-slate-200",
 };
 
 export function EventLog({ events }: { events: AgentEvent[] }) {
@@ -27,28 +27,28 @@ export function EventLog({ events }: { events: AgentEvent[] }) {
   return (
     <div
       ref={ref}
-      className="card font-mono text-xs h-[460px] overflow-y-auto space-y-1"
+      className="card font-mono text-sm h-[460px] overflow-y-auto space-y-1.5"
     >
       {events.length === 0 && (
-        <div className="text-muted italic">Waiting for the agents to start...</div>
+        <div className="text-muted italic text-base">Waiting for the agents to start...</div>
       )}
       {events.map((ev, i) => (
         <div key={i} className="flex gap-2 leading-snug">
           <span className="text-muted">
             {new Date(ev.timestamp).toLocaleTimeString()}
           </span>
-          <span className={clsx("font-semibold w-20 shrink-0", LAYER_COLOR[ev.layer])}>
+          <span className={clsx("font-semibold w-24 shrink-0", LAYER_COLOR[ev.layer])}>
             {ev.agent}
           </span>
           <span
             className={clsx(
-              "shrink-0 rounded border px-1 text-[10px] uppercase tracking-wide",
+              "shrink-0 rounded border px-1.5 py-0.5 text-xs uppercase tracking-wide",
               TYPE_BADGE[ev.type] ?? "border-border text-muted",
             )}
           >
             {ev.type}
           </span>
-          <span className="text-slate-200 truncate">{ev.content}</span>
+          <span className="text-slate-700 truncate text-sm">{ev.content}</span>
         </div>
       ))}
     </div>

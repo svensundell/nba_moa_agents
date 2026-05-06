@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from loguru import logger
 
 from app.api.runner import run_full, run_streaming
@@ -58,7 +58,14 @@ async def brief(req: BriefRequest) -> RunResult:
 
 @router.post("/query", response_model=RunResult)
 async def query(req: QueryRequest) -> RunResult:
-    return await run_full("query", query=req.query, date=req.date)
+    if not req.messages and not req.query.strip():
+        raise HTTPException(status_code=422, detail="Provide `query` or non-empty `messages`.")
+    return await run_full(
+        "query",
+        query=req.query,
+        messages=[m.model_dump(mode="json") for m in req.messages],
+        date=req.date,
+    )
 
 
 @router.post("/compare", response_model=RunResult)
@@ -84,10 +91,21 @@ async def ws_run(websocket: WebSocket) -> None:
             await websocket.send_json({"kind": "error", "message": f"unknown mode {mode}"})
             await websocket.close()
             return
+        if (
+            mode == "query"
+            and not str(payload.get("query", "")).strip()
+            and not payload.get("messages")
+        ):
+            await websocket.send_json(
+                {"kind": "error", "message": "Provide `query` or non-empty `messages`."}
+            )
+            await websocket.close()
+            return
 
         async for frame in run_streaming(
             mode,
             query=payload.get("query", ""),
+            messages=payload.get("messages"),
             date=payload.get("date"),
         ):
             await websocket.send_json(frame)

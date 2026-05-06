@@ -66,7 +66,7 @@ async def _bdl_get(path: str, params: dict[str, Any] | None = None) -> dict:
             r.raise_for_status()
         except httpx.HTTPStatusError:
             # Return a structured error payload so MCP tool calls do not crash the
-            # whole ask-anything flow on provider auth/tier limitations.
+            # whole NBA Copilot flow on provider auth/tier limitations.
             return {
                 "error": "balldontlie_request_failed",
                 "status_code": r.status_code,

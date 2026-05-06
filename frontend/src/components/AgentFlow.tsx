@@ -20,8 +20,8 @@ const PROPOSERS = ["scores", "news", "stats", "injuries", "social"] as const;
 const REFINERS = ["analyst", "narrative"] as const;
 
 const COLOR: Record<AgentStatus, string> = {
-  idle: "#1f2530",
-  running: "#f59e0b",
+  idle: "#cbd5e1",
+  running: "#f28c28",
   done: "#22c55e",
   error: "#ef4444",
 };
@@ -41,10 +41,10 @@ function nodeFor(
     data: {
       label: (
         <div className="text-left">
-          <div className="text-xs uppercase tracking-wide text-muted">{layer}</div>
-          <div className="font-semibold text-slate-100 text-sm">{label}</div>
+          <div className="text-xs uppercase tracking-[0.08em] text-muted">{layer}</div>
+          <div className="font-bold text-slate-900 text-base">{label}</div>
           {model && (
-            <div className="text-[10px] font-mono text-muted truncate max-w-[140px]">
+            <div className="text-xs font-mono text-muted truncate max-w-[160px]">
               {model}
             </div>
           )}
@@ -52,13 +52,16 @@ function nodeFor(
       ),
     },
     style: {
-      background: "#11151c",
+      background: "#ffffff",
       border: `2px solid ${ring}`,
-      color: "#e2e8f0",
+      color: "#0f172a",
       borderRadius: 12,
-      padding: 8,
-      width: 170,
-      boxShadow: status === "running" ? `0 0 0 6px ${ring}30` : undefined,
+      padding: 10,
+      width: 192,
+      boxShadow:
+        status === "running"
+          ? `0 0 0 6px ${ring}33`
+          : "0 1px 2px rgba(15, 23, 42, 0.08)",
       transition: "all 0.25s ease",
     },
   };
@@ -115,14 +118,14 @@ function buildEdges(): Edge[] {
       source: "kickoff",
       target: p,
       animated: true,
-      style: { stroke: "#1f2530" },
+      style: { stroke: "#cbd5e1" },
     });
     REFINERS.forEach((r) => {
       edges.push({
         id: `${p}-${r}`,
         source: p,
         target: r,
-        style: { stroke: "#1f2530" },
+        style: { stroke: "#cbd5e1" },
       });
     });
   });
@@ -132,8 +135,8 @@ function buildEdges(): Edge[] {
       source: r,
       target: "editor",
       animated: true,
-      markerEnd: { type: MarkerType.ArrowClosed, color: "#f59e0b" },
-      style: { stroke: "#f59e0b" },
+      markerEnd: { type: MarkerType.ArrowClosed, color: "#f28c28" },
+      style: { stroke: "#f28c28" },
     });
   });
   return edges;
@@ -144,7 +147,7 @@ export function AgentFlow({ statuses, models }: FlowProps) {
   const edges = useMemo(() => buildEdges(), []);
 
   return (
-    <div className="h-[460px] rounded-xl border border-border bg-panel/40 overflow-hidden">
+    <div className="h-[460px] rounded-2xl border border-border bg-panel overflow-hidden shadow-sm">
       <ReactFlow
         nodes={nodes}
         edges={edges}
@@ -155,8 +158,8 @@ export function AgentFlow({ statuses, models }: FlowProps) {
         zoomOnScroll={false}
         panOnScroll={false}
       >
-        <Background color="#1f2530" gap={24} />
-        <Controls showInteractive={false} className="!bg-panel !border-border" />
+        <Background color="#e2e8f0" gap={24} />
+        <Controls showInteractive={false} className="!bg-white !border-border" />
       </ReactFlow>
     </div>
   );

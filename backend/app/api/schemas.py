@@ -14,9 +14,24 @@ class BriefRequest(BaseModel):
     date: str | None = Field(default=None, description="ISO date (YYYY-MM-DD), defaults to yesterday.")
 
 
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"] = Field(
+        description="Chat role compatible with NBA Copilot."
+    )
+    content: str = Field(min_length=1, max_length=2000)
+
+
 class QueryRequest(BaseModel):
-    query: str = Field(min_length=3, max_length=500)
+    query: str = Field(
+        default="",
+        max_length=500,
+        description="Single-turn input kept for backwards compatibility.",
+    )
     date: str | None = None
+    messages: list[ChatMessage] = Field(
+        default_factory=list,
+        description="Optional conversation history for multi-turn NBA Copilot chat.",
+    )
 
 
 class CompareRequest(BaseModel):

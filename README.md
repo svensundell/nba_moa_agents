@@ -1,77 +1,85 @@
 # NBA MoA Agents
 
-> A **Mixture of Agents** system that generates a daily NBA briefing and answers any league question — built with LangGraph, OpenRouter, and the Model Context Protocol.
+> A **Mixture of Agents** system that produces a structured daily NBA briefing and includes **NBA Copilot** — a multi-turn, MCP-powered research chat — built with LangGraph, OpenRouter and the Model Context Protocol.
 
 ![python](https://img.shields.io/badge/python-3.11+-blue)
-![langgraph](https://img.shields.io/badge/langgraph-1.x-green)
-![openrouter](https://img.shields.io/badge/openrouter-deepseek--v4--flash-orange)
-![mcp](https://img.shields.io/badge/MCP-3_servers-purple)
+![langgraph](https://img.shields.io/badge/langgraph-0.2-green)
+![openrouter](https://img.shields.io/badge/openrouter-5_model_families-orange)
+![mcp](https://img.shields.io/badge/MCP-3_servers_·_11_tools-purple)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
 ## Why this project?
 
-Most "Mixture of Agents" demos online are abstract, generic chatbots. This one solves a concrete personal problem:
+Most "Mixture of Agents" demos online are abstract chat playgrounds. This one solves a concrete personal problem:
 
-> *I want a daily NBA briefing tailored to my interests, generated automatically every morning, that I can also query interactively to dig deeper.*
+> *I want a structured NBA briefing for last night, generated automatically every morning, and **NBA Copilot** to dig deeper interactively.*
 
 Three things make this implementation noteworthy:
 
-1. **Real model diversity** — 8 specialised agents on **3 layers** with role-specific prompts and model slots routed through OpenRouter. Not the same LLM with eight prompts.
-2. **Three custom MCP servers** — `nba-stats-mcp` (balldontlie.io), `reddit-mcp` (r/nba JSON) and `espn-mcp` (ESPN NBA RSS). They speak the Model Context Protocol so any MCP client (Claude Desktop, Cursor, our LangGraph agents) can plug into them. **The pipeline is strictly MCP-driven — no HTTP fallbacks**: all external data flows through MCP tools.
-3. **Live agent visualisation** — the React frontend uses ReactFlow to show *each agent thinking in real time*, including every MCP tool call, streamed over WebSocket. Perfect for screen-recording the pipeline.
+1. **Real model diversity over OpenRouter** — 9 specialised agents on 3 layers, routed through **5 different model families** (DeepSeek, Google Gemini, Qwen, Mistral). Different roles, different brains — not the same LLM with eight prompts.
+2. **Three custom MCP servers, 11 tools total** — `nba-stats-mcp` (balldontlie.io), `reddit-mcp` (r/nba JSON) and `espn-mcp` (ESPN RSS + ESPN site API for boxscores). They speak the Model Context Protocol so any MCP client (Claude Desktop, Cursor, our LangGraph agents) can plug into them. **The pipeline is strictly MCP-driven — no HTTP fallbacks.**
+3. **Hybrid orchestration** — the `brief` mode runs a *deterministic* LangGraph MoA pipeline (perfect for a daily recap). **NBA Copilot** (`query` mode) runs a *dynamic* LangChain `create_agent` with the full MCP toolset, supports multi-turn chat history, and streams each tool decision over WebSocket so the frontend renders a live MCP tool timeline.
 
 ## Architecture
 
 ```
-                   ┌────── kickoff ──────┐
-                   │                     │
-   ┌────┬────┬─────┴────┬────────┬───────┴───────────┐
-   ▼    ▼    ▼          ▼        ▼                   ▼
- scores news stats   injuries  social         baseline (compare-only)
-   L1   L1   L1         L1       L1
-    └────┴────┴──────────┴───────┘
-                        ▼
-                ┌───────┴───────┐
-                ▼               ▼
-             analyst        narrative
-                L2             L2
-                └──────┬───────┘
-                       ▼
-                    editor (L3)
-                       ▼
-                      END
+                   ┌──────── kickoff ────────┐
+                   │                         │
+   ┌────┬────┬─────┴────┬──────────┬─────────┴──────────┐
+   ▼    ▼    ▼          ▼          ▼                    ▼
+ scores news stats   injuries   social         baseline (compare-only)
+   L1   L1  L1*        L1         L1                    └─ END
+    └────┴───┬┴──────────┴──────────┘
+             ▼
+       ┌─────┴─────┐
+       ▼           ▼
+    analyst    narrative
+       L2         L2
+       └─────┬─────┘
+             ▼
+          editor (L3)
+             ▼
+            END
 ```
 
-Layers run in parallel inside LangGraph for low-latency end-to-end execution. See [`docs/architecture.md`](docs/architecture.md) for the full deep dive.
+`L1*` = the `stats` proposer is a **tool-using LangChain agent**: it autonomously decides which ESPN/balldontlie tools to call to get exact statlines.
+
+LangGraph executes nodes that share an incoming edge in **parallel**, so layer-1 fans out concurrently. Layer-2 waits for the layer-1 join, then fans out again. The editor finally synthesises everything. See [`docs/architecture.md`](docs/architecture.md) for the full deep dive.
 
 ### Agent → model → MCP tool lineup
 
-| Agent | Layer | OpenRouter model | MCP tool(s) it calls |
-|---|---|---|---|
-| scores | proposer | `deepseek/deepseek-v4-flash` | `nba_stats_get_games` |
-| news | proposer | `deepseek/deepseek-v4-flash` | `espn_nba_headlines` |
-| stats | proposer | `deepseek/deepseek-v4-flash` | `nba_stats_search_players`, `nba_stats_team_recent_games` |
-| injuries | proposer | `deepseek/deepseek-v4-flash` | `espn_nba_injury_headlines` |
-| social | proposer | `deepseek/deepseek-v4-flash` | `reddit_top_posts` / `reddit_search_posts` |
-| analyst | refiner | `deepseek/deepseek-v4-flash` | (no tool — synthesises proposals) |
-| narrative | refiner | `deepseek/deepseek-v4-flash` | (no tool — synthesises proposals) |
-| editor | aggregator | `deepseek/deepseek-v4-flash` | (no tool — composes final brief) |
+| Agent       | Layer       | OpenRouter model                              | MCP tool(s) it calls |
+|-------------|-------------|-----------------------------------------------|----------------------|
+| `scores`    | proposer    | `google/gemini-2.5-flash`                     | `nba_stats_get_games` (yesterday + today) |
+| `news`      | proposer    | `google/gemini-2.5-flash`                     | `espn_nba_headlines` |
+| `stats`     | proposer\*  | `qwen/qwen3.6-35b-a3b`                        | `espn_nba_scoreboard`, `espn_nba_boxscore`, `espn_nba_headlines`, `nba_stats_get_games`, `nba_stats_search_players` |
+| `injuries`  | proposer    | `google/gemini-2.5-flash`                     | `espn_nba_injury_headlines` |
+| `social`    | proposer    | `mistralai/mistral-small-24b-instruct-2501`   | `reddit_top_posts` / `reddit_search_posts` |
+| `analyst`   | refiner     | `qwen/qwen3.6-35b-a3b`                        | (no tool — fact-checks the proposals) |
+| `narrative` | refiner     | `deepseek/deepseek-chat-v3.1`                 | (no tool — finds storylines) |
+| `editor`    | aggregator  | `deepseek/deepseek-chat-v3.1`                 | (no tool — composes the final brief) |
+| `baseline`  | compare-only| `deepseek/deepseek-chat-v3.1`                 | (no tool — single-LLM control) |
+| `nba_copilot` | NBA Copilot | `deepseek/deepseek-v4-pro`      | **all 11 MCP tools** (autonomous tool selection) |
+
+\* `stats` is a tool-using agent: it plans up to ~6 tool calls per run to ground its bullets in **exact statlines** lifted from ESPN's boxscore data.
 
 ### MCP servers (all custom, all in this repo)
 
-| Server | Path | Wraps | Tools |
-|---|---|---|---|
-| **`nba_stats`** | `mcp_servers/nba_stats/server.py` | balldontlie.io v1 | `get_games`, `search_players`, `list_teams`, `team_recent_games` |
-| **`reddit`** | `mcp_servers/reddit/server.py` | Public Reddit JSON | `top_posts`, `hot_posts`, `search_posts` |
-| **`espn`** | `mcp_servers/espn/server.py` | ESPN NBA RSS | `nba_headlines`, `nba_injury_headlines` |
+| Server          | Path                              | Wraps               | Tools |
+|-----------------|-----------------------------------|---------------------|-------|
+| **`nba_stats`** | `mcp_servers/nba_stats/server.py` | balldontlie.io v1   | `get_games`, `search_players`, `list_teams`, `team_recent_games` |
+| **`reddit`**    | `mcp_servers/reddit/server.py`    | Public Reddit JSON  | `top_posts`, `hot_posts`, `search_posts` |
+| **`espn`**      | `mcp_servers/espn/server.py`      | ESPN NBA RSS + site API | `nba_headlines`, `nba_injury_headlines`, `nba_scoreboard`, `nba_boxscore` |
+
+All three are launched as **stdio subprocesses** by `langchain_mcp_adapters.MultiServerMCPClient` at FastAPI startup, with `tool_name_prefix=True` so each tool surfaces as `<server>_<tool>` (e.g. `nba_stats_get_games`, `espn_nba_boxscore`).
 
 ## Three demo modes
 
-| Mode | Description |
-|---|---|
-| **Daily Brief** | One click → a structured NBA briefing for last night |
-| **Ask Anything** | Free-form NBA questions answered by a LangChain agent with access to all MCP tools |
-| **MoA vs Single LLM** | Split-screen comparison showing the value the MoA pattern adds |
+| Mode                  | Orchestration          | What it does |
+|-----------------------|------------------------|--------------|
+| **Daily Brief**       | Deterministic LangGraph MoA | One click → a structured 7-section briefing for last night (Quick Hits / Box Score Recap / Standout Statlines / Trades & News / Injuries Watch / Storyline / Fan Pulse). |
+| **NBA Copilot** | Dynamic LangChain `create_agent` | Multi-turn NBA chat with tool-using reasoning. The agent decides which MCP tools to call from conversation context, and tool decisions stream live to the UI. |
+| **MoA vs Single LLM** | LangGraph MoA + parallel single-LLM baseline | Side-by-side comparison showing where the MoA pattern adds value (and where it doesn't). |
 
 ## Quick start
 
@@ -79,16 +87,15 @@ Layers run in parallel inside LangGraph for low-latency end-to-end execution. Se
 
 - Python 3.11+
 - Node.js 20+
-- An [OpenRouter API key](https://openrouter.ai/)
-
-Set `BALLDONTLIE_API_KEY` in `.env` (required by the NBA MCP server).
+- An [OpenRouter API key](https://openrouter.ai/) (one key, all the models the agents use)
+- Optional: a [balldontlie API key](https://www.balldontlie.io/) for higher-quota NBA stats requests
 
 ### Run locally
 
 ```bash
 # 1. Configure
 cp .env.example .env
-# fill in OPENROUTER_API_KEY (mandatory), BRAVE_API_KEY (optional)
+# fill in OPENROUTER_API_KEY (required) and BALLDONTLIE_API_KEY (optional)
 
 # 2. Backend
 cd backend
@@ -126,20 +133,26 @@ python -m scripts.demo compare "What should the Lakers do at the deadline?"
 nba_moa_agents/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py              FastAPI entrypoint
-│   │   ├── api/                 REST + WebSocket routes
+│   │   ├── main.py              FastAPI entrypoint (MCP lifespan)
+│   │   ├── api/                 REST + WebSocket routes (/brief, /query, /compare, /ws/run)
 │   │   ├── moa/
-│   │   │   ├── graph.py         LangGraph StateGraph
-│   │   │   ├── state.py         Shared state schema
-│   │   │   ├── llm.py           OpenRouter model registry
-│   │   │   └── agents/          Per-agent logic + prompts
-│   │   ├── mcp/                 MCP client manager
+│   │   │   ├── graph.py         LangGraph StateGraph for brief & compare modes
+│   │   │   ├── state.py         Shared state schema + AgentEvent
+│   │   │   ├── llm.py           OpenRouter model registry + agent → model mapping
+│   │   │   ├── open_query.py    Tool-using LangChain agent for NBA Copilot
+│   │   │   └── agents/          Per-agent logic + prompts (proposers / refiners / editor)
+│   │   ├── mcp/                 MCPRegistry: launches & caches the 3 MCP servers
 │   │   └── core/                Config & logging
 │   ├── scripts/demo.py          CLI demo runner
-│   └── tests/
+│   └── tests/                   Smoke tests (no LLM calls)
 ├── mcp_servers/
-│   └── nba_stats/               Custom MCP server (balldontlie wrapper)
-├── frontend/                    React + Vite + ReactFlow
+│   ├── nba_stats/               Custom MCP server (balldontlie wrapper)
+│   ├── reddit/                  Custom MCP server (public Reddit JSON wrapper)
+│   └── espn/                    Custom MCP server (ESPN RSS + site API wrapper)
+├── frontend/                    React 18 + Vite + TypeScript + Tailwind + ReactFlow
+│   ├── src/App.tsx              Mode tabs · agent graph · MCP tool timeline · live trace
+│   └── src/api.ts               REST + WebSocket client
+├── docker-compose.yml
 └── docs/architecture.md
 ```
 
@@ -149,16 +162,18 @@ The three MCP servers in `mcp_servers/` are reusable on their own — drop them 
 
 - [`mcp_servers/nba_stats/README.md`](mcp_servers/nba_stats/README.md) — NBA games, players, teams (free-plan-safe)
 - [`mcp_servers/reddit/README.md`](mcp_servers/reddit/README.md) — r/nba (or any subreddit) JSON wrapper
-- [`mcp_servers/espn/README.md`](mcp_servers/espn/README.md) — ESPN NBA RSS feed
+- [`mcp_servers/espn/README.md`](mcp_servers/espn/README.md) — ESPN NBA RSS feed + scoreboard + per-player boxscores
 
 ## Roadmap
 
 - [x] Project scaffolding
 - [x] LangGraph MoA pipeline
-- [x] 8 specialised NBA agents
-- [x] Custom NBA MCP server
-- [x] FastAPI + WebSocket streaming
-- [x] React frontend with live agent flow
+- [x] 9 specialised NBA agents on 5 model families
+- [x] Three custom MCP servers (nba_stats, reddit, espn)
+- [x] Strictly MCP-driven data layer (no HTTP fallbacks)
+- [x] Hybrid orchestration: deterministic MoA for `brief`, dynamic multi-turn tool-using agent for NBA Copilot
+- [x] FastAPI + WebSocket streaming with live MCP tool timeline
+- [x] React frontend with ReactFlow agent graph + tool timeline
 - [x] MoA vs Single LLM comparison
 - [x] CLI demo runner
 - [ ] Scheduled daily briefing (cron + email/Slack)

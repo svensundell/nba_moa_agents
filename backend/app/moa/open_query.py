@@ -1,8 +1,8 @@
-"""Open-query agent for the Ask Anything mode.
+"""NBA Copilot — tool-using agent for query (chat) mode.
 
 Unlike the deterministic daily-brief MoA graph, this module builds a
 tool-using LangChain agent and gives it the full MCP toolset. The agent can
-decide which tools to call (and in what order) based on the user's question.
+decide which tools to call (and in what order) based on the conversation.
 """
 
 from __future__ import annotations
@@ -19,7 +19,7 @@ from app.mcp.client import mcp_registry
 from app.moa.llm import AGENT_MODELS, get_model, model_id
 from app.moa.state import AgentEvent
 
-ASK_ANYTHING_SYSTEM = """You are an NBA research assistant with access to MCP tools.
+NBA_COPILOT_SYSTEM = """You are an NBA research assistant with access to MCP tools.
 
 Your goal is to answer the user's question with concrete, up-to-date evidence.
 
@@ -42,7 +42,7 @@ def _event(
     model: str = "",
 ) -> AgentEvent:
     return AgentEvent(
-        agent="ask_anything",
+        agent="nba_copilot",
         layer="aggregator",
         type=type_,  # type: ignore[arg-type]
         content=content,
@@ -120,7 +120,7 @@ def _tool_uses_bdl_season_averages_401_any(messages: list[Any]) -> bool:
     return False
 
 
-def _filter_ask_anything_tools() -> list[Any]:
+def _filter_nba_copilot_tools() -> list[Any]:
     """Return tool list tailored for free balldontlie plans.
 
     We intentionally exclude the direct season-averages tool because that
@@ -131,6 +131,28 @@ def _filter_ask_anything_tools() -> list[Any]:
         "nba_stats_player_stats_by_name",
     }
     return [tool for tool in mcp_registry.all_tools if tool.name not in blocked]
+
+
+def _build_input_messages(
+    *,
+    query: str,
+    messages: list[dict[str, str]] | None,
+) -> list[dict[str, str]]:
+    """Build and validate the message list sent to the LangChain agent."""
+    out: list[dict[str, str]] = []
+    for msg in messages or []:
+        role = str(msg.get("role", "")).strip()
+        content = str(msg.get("content", "")).strip()
+        if role not in {"user", "assistant"} or not content:
+            continue
+        out.append({"role": role, "content": content})
+    if not out and query.strip():
+        out.append({"role": "user", "content": query.strip()})
+    if not out:
+        raise ValueError("NBA Copilot requires at least one user message.")
+    if not any(msg["role"] == "user" for msg in out):
+        raise ValueError("NBA Copilot history must include at least one user message.")
+    return out
 
 
 def _tool_events(messages: list[BaseMessage]) -> list[AgentEvent]:
@@ -144,34 +166,37 @@ def _tool_events(messages: list[BaseMessage]) -> list[AgentEvent]:
     return events
 
 
-def _build_ask_anything_agent() -> tuple[Any, str, str, list[Any]]:
+def _build_nba_copilot_agent() -> tuple[Any, str, str, list[Any]]:
     """Create model+agent and return (agent, model_name, model_label, tools)."""
-    model_name = AGENT_MODELS.get("ask_anything", "open_query")
+    model_name = AGENT_MODELS.get("nba_copilot", "open_query")
     model = get_model(model_name, temperature=0.1)
     model_label = model_id(model_name)
-    tools = _filter_ask_anything_tools()
+    tools = _filter_nba_copilot_tools()
     if not tools:
         raise RuntimeError("No MCP tools loaded. Ensure MCP registry is initialised.")
     agent = create_agent(
         model=model,
         tools=tools,
-        system_prompt=ASK_ANYTHING_SYSTEM,
+        system_prompt=NBA_COPILOT_SYSTEM,
     )
     return agent, model_name, model_label, tools
 
 
 async def stream_open_query_frames(
-    query: str, date: str | None = None
+    query: str,
+    messages: list[dict[str, str]] | None = None,
+    date: str | None = None,
 ) -> AsyncIterator[dict[str, Any]]:
-    """Stream Ask Anything frames live for websocket clients."""
+    """Stream NBA Copilot frames live for websocket clients."""
     started_at = datetime.now()
     date_value = date or datetime.now().date().isoformat()
-    agent, _model_name, model_label, tools = _build_ask_anything_agent()
+    agent, _model_name, model_label, tools = _build_nba_copilot_agent()
+    input_messages = _build_input_messages(query=query, messages=messages)
 
     events: list[AgentEvent] = [
         _event(
             "start",
-            f"Ask-anything agent started with {len(tools)} MCP tools.",
+            f"NBA Copilot started with {len(tools)} MCP tools.",
             model=model_label,
         )
     ]
@@ -183,7 +208,7 @@ async def stream_open_query_frames(
 
     try:
         async for trace_event in agent.astream_events(
-            {"messages": [{"role": "user", "content": query}]},
+            {"messages": input_messages},
             version="v2",
         ):
             evt_type = trace_event.get("event")
@@ -212,16 +237,16 @@ async def stream_open_query_frames(
                 "(401 Unauthorized), so this answer uses other available data sources."
             )
 
-        done = _event("done", "Ask-anything answer ready.", model=model_label)
+        done = _event("done", "NBA Copilot answer ready.", model=model_label)
         events.append(done)
         yield {"kind": "event", "event": done.model_dump(mode="json")}
     except Exception as exc:
         answer = (
-            "I couldn't complete the ask-anything run because the LLM call failed.\n\n"
+            "I couldn't complete the NBA Copilot run because the LLM call failed.\n\n"
             f"Error: `{exc}`\n\n"
             "Please verify network access / API connectivity and try again."
         )
-        err = _event("error", f"Ask-anything failed: {exc}", model=model_label)
+        err = _event("error", f"NBA Copilot failed: {exc}", model=model_label)
         events.append(err)
         yield {"kind": "event", "event": err.model_dump(mode="json")}
 
@@ -242,18 +267,23 @@ async def stream_open_query_frames(
     yield {"kind": "result", "result": result.model_dump(mode="json")}
 
 
-async def run_open_query(query: str, date: str | None = None) -> RunResult:
-    """Run the ask-anything tool-using agent and return RunResult."""
+async def run_open_query(
+    query: str,
+    messages: list[dict[str, str]] | None = None,
+    date: str | None = None,
+) -> RunResult:
+    """Run the NBA Copilot tool-using agent and return RunResult."""
     started_at = datetime.now()
     date_value = date or datetime.now().date().isoformat()
-    agent, _model_name, model_label, tools = _build_ask_anything_agent()
+    agent, _model_name, model_label, tools = _build_nba_copilot_agent()
+    input_messages = _build_input_messages(query=query, messages=messages)
 
     events: list[AgentEvent] = [
-        _event("start", f"Ask-anything agent started with {len(tools)} MCP tools.", model=model_label)
+        _event("start", f"NBA Copilot started with {len(tools)} MCP tools.", model=model_label)
     ]
 
     try:
-        result = await agent.ainvoke({"messages": [{"role": "user", "content": query}]})
+        result = await agent.ainvoke({"messages": input_messages})
         messages: list[BaseMessage] = result.get("messages", [])
         events.extend(_tool_events(messages))
         answer = _final_answer(messages)
@@ -262,14 +292,14 @@ async def run_open_query(query: str, date: str | None = None) -> RunResult:
                 "\n\n> Note: balldontlie season averages are unavailable on the current API plan "
                 "(401 Unauthorized), so this answer uses other available data sources."
             )
-        events.append(_event("done", "Ask-anything answer ready.", model=model_label))
+        events.append(_event("done", "NBA Copilot answer ready.", model=model_label))
     except Exception as exc:
         answer = (
-            "I couldn't complete the ask-anything run because the LLM call failed.\n\n"
+            "I couldn't complete the NBA Copilot run because the LLM call failed.\n\n"
             f"Error: `{exc}`\n\n"
             "Please verify network access / API connectivity and try again."
         )
-        events.append(_event("error", f"Ask-anything failed: {exc}", model=model_label))
+        events.append(_event("error", f"NBA Copilot failed: {exc}", model=model_label))
 
     finished_at = datetime.now()
     return RunResult(
