@@ -17,7 +17,8 @@ dependencies = [
     # LangGraph + LLM
     "langgraph>=0.2.50",
     "langchain-core>=0.3.20",
-    "langchain-groq>=0.2.1",
+    "langchain>=0.3.0",
+    "langchain-openai>=0.2.14",
     # MCP client
     "mcp>=1.0.0",
     "langchain-mcp-adapters>=0.0.3",

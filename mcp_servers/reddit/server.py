@@ -65,7 +65,13 @@ mcp = FastMCP("reddit")
 # ─── Tools ───────────────────────────────────────────────────────────────────
 
 
-@mcp.tool()
+@mcp.tool(
+    description=(
+        "Get top posts from a subreddit (`r/nba` by default) for a selected timeframe. "
+        "Use for highest-scoring community sentiment snapshots (`hour|day|week|month|year|all`); not for real-time momentum (use `hot_posts`). "
+        "Output JSON includes `subreddit`, `timeframe`, and simplified `posts` fields (title, score, comments, links, flair, excerpt)."
+    ),
+)
 async def top_posts(
     subreddit: str = "nba",
     limit: int = 10,
@@ -88,7 +94,13 @@ async def top_posts(
     return {"subreddit": subreddit, "timeframe": timeframe, "posts": [_shape(c["data"]) for c in children]}
 
 
-@mcp.tool()
+@mcp.tool(
+    description=(
+        "Get currently hot posts from a subreddit (`r/nba` by default). "
+        "Use for what is actively trending now based on engagement velocity; not for all-time/high-score ranking (use `top_posts`). "
+        "Output JSON includes `subreddit` and simplified `posts` payload."
+    ),
+)
 async def hot_posts(subreddit: str = "nba", limit: int = 10) -> dict:
     """Return the currently *hot* posts from a subreddit.
 
@@ -100,7 +112,13 @@ async def hot_posts(subreddit: str = "nba", limit: int = 10) -> dict:
     return {"subreddit": subreddit, "posts": [_shape(c["data"]) for c in children]}
 
 
-@mcp.tool()
+@mcp.tool(
+    description=(
+        "Search posts within one subreddit, sorted by relevance. "
+        "Use for targeted questions like 'what is r/nba saying about X'; requires `query`, with optional `subreddit` and `limit` (1-25). "
+        "Output JSON includes `subreddit`, `query`, and simplified matching `posts`."
+    ),
+)
 async def search_posts(query: str, subreddit: str = "nba", limit: int = 10) -> dict:
     """Search posts in a subreddit (sorted by relevance).
 

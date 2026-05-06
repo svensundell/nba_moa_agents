@@ -30,6 +30,11 @@ structure:
 ## Box Score Recap
 (Two short paragraphs, max ~120 words.)
 
+## Standout Statlines
+- (2-4 bullets. Each bullet must include an EXACT statline lifted from the
+  stats draft, e.g. `Austin Reaves (Lakers): 8 pts on 3-of-16 FG, 4 TO`.
+  Mix positive and negative standouts when both are available.)
+
 ## Trades, Rumors & News
 (Bullets covering the verified news from the fact sheet.)
 
@@ -45,6 +50,8 @@ structure:
 
 Rules:
 - Stay strictly within the facts from the analyst sheet and the proposers.
+- For Standout Statlines, only use lines that already appear in the stats draft.
+  If the stats draft has no exact statline, write "No notable items today.".
 - Never invent stats, scores, or quotes.
 - If a section has no data, write "No notable items today." instead of skipping.
 - No emojis, no clickbait headlines.
@@ -98,7 +105,7 @@ async def editor_agent(state: MoAState) -> dict:
         )
 
     content = await call_llm("editor", system=system, user=user)
-    model = model_id(AGENT_MODELS.get("editor", "llama-versatile"))
+    model = model_id(AGENT_MODELS.get("editor", "balanced"))
     return {
         "final_brief": content,
         "events": [event("editor", "aggregator", "done", content="brief ready", model=model)],
@@ -121,7 +128,7 @@ async def baseline_agent(state: MoAState) -> dict:
         return {"single_llm_answer": ""}
     query = state.get("query") or "Give me a daily NBA briefing."
     answer = await call_llm("single_llm_baseline", system=BASELINE_SYSTEM, user=query)
-    model = model_id(AGENT_MODELS.get("single_llm_baseline", "llama-versatile"))
+    model = model_id(AGENT_MODELS.get("single_llm_baseline", "balanced"))
     return {
         "single_llm_answer": answer,
         "events": [event("baseline", "system", "done", content="baseline ready", model=model)],

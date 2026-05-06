@@ -58,15 +58,21 @@ async def call_llm(
     temperature: float | None = None,
 ) -> str:
     """Run a one-shot LLM call for an agent and return the text content."""
-    model_name = AGENT_MODELS.get(agent, "llama-versatile")
+    model_name = AGENT_MODELS.get(agent, "balanced")
+    resolved_model = model_id(model_name)
     llm = get_model(model_name, temperature=temperature)
     msgs: list[Any] = [SystemMessage(content=system), HumanMessage(content=user)]
     try:
         response = await llm.ainvoke(msgs)
         return str(response.content).strip()
     except Exception as exc:  # pragma: no cover - network errors
-        logger.bind(agent=agent).error(f"LLM call failed: {exc}")
-        return f"[error: {agent} LLM call failed: {exc}]"
+        logger.bind(agent=agent).error(
+            f"LLM call failed (logical={model_name}, resolved={resolved_model}): {exc}"
+        )
+        return (
+            f"[error: {agent} LLM call failed "
+            f"(logical={model_name}, resolved={resolved_model}): {exc}]"
+        )
 
 
 # ─── MCP tool invocation (with structured event emission) ────────────────────
@@ -155,7 +161,7 @@ def make_proposal(
 ) -> AgentProposal:
     return AgentProposal(
         agent=agent,
-        model=model_id(AGENT_MODELS.get(agent, "llama-versatile")),
+        model=model_id(AGENT_MODELS.get(agent, "balanced")),
         summary=summary,
         sources=sources or [],
         raw=raw,

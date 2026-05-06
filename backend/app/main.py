@@ -44,7 +44,7 @@ def create_app() -> FastAPI:
         version=__version__,
         description=(
             "Mixture-of-Agents pipeline for NBA briefings & queries. "
-            "Built with LangGraph + Groq + MCP."
+            "Built with LangGraph + OpenRouter + MCP."
         ),
         lifespan=lifespan,
     )

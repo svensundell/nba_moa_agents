@@ -23,7 +23,8 @@ class Settings(BaseSettings):
     log_level: str = Field(default="INFO")
     allowed_origins: str = Field(default="http://localhost:5173")
 
-    groq_api_key: str = Field(default="")
+    openrouter_api_key: str = Field(default="")
+    openrouter_base_url: str = Field(default="https://openrouter.ai/api/v1")
     brave_api_key: str = Field(default="")
     balldontlie_api_key: str = Field(default="")
     reddit_user_agent: str = Field(default="")
@@ -33,12 +34,16 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
 
     @property
-    def has_groq(self) -> bool:
-        return bool(self.groq_api_key)
+    def has_openrouter(self) -> bool:
+        return bool(self.openrouter_api_key.strip())
 
     @property
     def has_brave(self) -> bool:
         return bool(self.brave_api_key)
+
+    @property
+    def has_balldontlie(self) -> bool:
+        return bool(self.balldontlie_api_key.strip())
 
 
 @lru_cache

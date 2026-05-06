@@ -93,6 +93,11 @@ class MCPRegistry:
         return sorted(self._tools.keys())
 
     @property
+    def all_tools(self) -> list[BaseTool]:
+        """Return every loaded tool (empty list if not initialised)."""
+        return list(self._tools.values())
+
+    @property
     def server_names(self) -> list[str]:
         return list(SERVER_PATHS.keys())
 

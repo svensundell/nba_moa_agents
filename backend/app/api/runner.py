@@ -15,6 +15,7 @@ from loguru import logger
 
 from app.api.schemas import ProposalView, RefinementView, RunResult
 from app.moa.graph import GRAPH
+from app.moa.open_query import run_open_query, stream_open_query_frames
 from app.moa.state import AgentEvent, MoAState, initial_state
 
 
@@ -64,6 +65,9 @@ async def run_full(
     date: str | None = None,
 ) -> RunResult:
     """Run the graph end-to-end and return the consolidated RunResult."""
+    if mode == "query":
+        return await run_open_query(query=query, date=date)
+
     started_at = datetime.now()
     state: MoAState = initial_state(mode, query=query, date=date)
     final_state = await GRAPH.ainvoke(state)
@@ -88,6 +92,11 @@ async def run_streaming(
         {"kind": "node_done", "node": "scores", ...}
         {"kind": "result", "result": <RunResult>}
     """
+    if mode == "query":
+        async for frame in stream_open_query_frames(query=query, date=date):
+            yield frame
+        return
+
     started_at = datetime.now()
     state: MoAState = initial_state(mode, query=query, date=date)
 

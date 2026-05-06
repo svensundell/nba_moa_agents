@@ -15,7 +15,7 @@ import operator
 from datetime import datetime
 from typing import Annotated, Any, Literal, TypedDict
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ─── Public payloads (also used by the API layer) ────────────────────────────
 
@@ -28,7 +28,7 @@ class AgentEvent(BaseModel):
     type: Literal["start", "chunk", "tool", "done", "error"]
     content: str = ""
     model: str = ""
-    timestamp: datetime = datetime.now()
+    timestamp: datetime = Field(default_factory=datetime.now)
 
 
 class AgentProposal(BaseModel):

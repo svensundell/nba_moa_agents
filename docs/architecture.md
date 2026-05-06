@@ -10,7 +10,7 @@
 2. **MCP-native** — the system both *consumes* MCP servers (Brave Search,
    Fetch, our own NBA stats server) and *exposes* a custom MCP server that
    any other client (Claude Desktop, Cursor) can plug into.
-3. **Demoable** — anyone can clone, set a Groq API key, run `docker compose
+3. **Demoable** — anyone can clone, set an OpenRouter API key, run `docker compose
    up`, and get a working live demo on `localhost:5173`.
 
 ## Pipeline
@@ -44,17 +44,17 @@ fans out again. The editor finally synthesises everything.
 The point of MoA is *model diversity*. Here, every node intentionally uses a
 different family:
 
-| Agent     | Model (Groq)                         | Why |
+| Agent     | Model (OpenRouter)                   | Why |
 |-----------|---------------------------------------|---|
-| scores    | `llama-3.1-8b-instant`                | Cheap, structured-output reliable |
-| news      | `llama-3.3-70b-versatile`             | Strong reasoning over headlines |
-| stats     | `llama-3.3-70b-versatile`             | Numerical reasoning + thinking trace |
-| injuries  | `llama-3.1-8b-instant`                | Filter+format task is small |
-| social    | `llama-3.1-8b-instant`                | Sentiment-friendly, terse outputs |
-| analyst   | `llama-3.3-70b-versatile`             | Cross-checking, broad context |
-| narrative | `llama-3.3-70b-versatile`             | Storytelling + creative arcs |
-| editor    | `llama-3.3-70b-versatile`             | Best long-form generator |
-| baseline  | `llama-3.3-70b-versatile`             | Same model the editor uses, alone |
+| scores    | `deepseek/deepseek-v4-flash`          | Cheap, structured-output reliable |
+| news      | `deepseek/deepseek-v4-flash`          | Strong reasoning over headlines |
+| stats     | `deepseek/deepseek-v4-flash`          | Numerical reasoning + thinking trace |
+| injuries  | `deepseek/deepseek-v4-flash`          | Filter+format task is small |
+| social    | `deepseek/deepseek-v4-flash`          | Sentiment-friendly, terse outputs |
+| analyst   | `deepseek/deepseek-v4-flash`          | Cross-checking, broad context |
+| narrative | `deepseek/deepseek-v4-flash`          | Storytelling + creative arcs |
+| editor    | `deepseek/deepseek-v4-flash`          | Best long-form generator |
+| baseline  | `deepseek/deepseek-v4-flash`          | Same model the editor uses, alone |
 
 ## State management
 
@@ -129,7 +129,17 @@ the ReactFlow graph, producing the live "watch agents thinking" effect.
 ## Comparing modes
 
 The `compare` mode runs the **full MoA** alongside a **single-model
-baseline** (`llama-3.3-70b-versatile` answering directly). Both run in
+baseline** (`deepseek/deepseek-v4-flash` answering directly). Both run in
 parallel inside the same graph and the UI shows them side by side. This is
 the highest-leverage demo: it shows when MoA actually adds value vs. just
 costing more tokens.
+
+## Hybrid orchestration
+
+The project now uses a deliberate split:
+
+- `brief` and `compare` use the deterministic MoA LangGraph (great for
+  repeatable daily recaps).
+- `query` uses a tool-using LangChain agent (`create_agent`) with the full MCP
+  toolset (`nba_stats_*`, `reddit_*`, `espn_*`) so it can plan tool calls
+  dynamically for open-ended questions.

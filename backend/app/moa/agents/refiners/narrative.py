@@ -37,7 +37,7 @@ async def narrative_agent(state: MoAState) -> dict:
 
     ref = AgentRefinement(
         agent="narrative",
-        model=model_id(AGENT_MODELS.get("narrative", "qwen-reasoner")),
+        model=model_id(AGENT_MODELS.get("narrative", "reasoner")),
         content=content,
     )
     return {

@@ -2,8 +2,7 @@
 
 This is the project's flagship MCP integration. Any LLM client that speaks
 MCP (Claude Desktop, Cursor, our own LangGraph agents, etc.) can plug into
-this server and immediately gain access to NBA games, players, teams and
-season averages.
+this server and immediately gain access to NBA games, players and teams.
 
 Run it standalone for testing::
 
@@ -15,6 +14,7 @@ through ``MultiServerMCPClient``.
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 import os
 from typing import Any
@@ -24,6 +24,7 @@ from mcp.server.fastmcp import FastMCP
 
 
 BDL_BASE = "https://api.balldontlie.io/v1"
+MAX_429_RETRIES = 3
 
 
 def _headers() -> dict[str, str]:
@@ -36,8 +37,43 @@ def _headers() -> dict[str, str]:
 
 async def _bdl_get(path: str, params: dict[str, Any] | None = None) -> dict:
     async with httpx.AsyncClient(timeout=10.0) as client:
-        r = await client.get(f"{BDL_BASE}{path}", params=params, headers=_headers())
-        r.raise_for_status()
+        last_response: httpx.Response | None = None
+        for attempt in range(MAX_429_RETRIES + 1):
+            r = await client.get(f"{BDL_BASE}{path}", params=params, headers=_headers())
+            last_response = r
+            if r.status_code != 429:
+                break
+            if attempt >= MAX_429_RETRIES:
+                break
+            retry_after = r.headers.get("Retry-After", "").strip()
+            wait_s = 0.6 * (2**attempt)
+            try:
+                if retry_after:
+                    wait_s = max(wait_s, float(retry_after))
+            except ValueError:
+                pass
+            await asyncio.sleep(wait_s)
+        if last_response is None:
+            return {
+                "error": "balldontlie_request_failed",
+                "status_code": 500,
+                "path": path,
+                "params": params or {},
+                "message": "No response from balldontlie",
+            }
+        r = last_response
+        try:
+            r.raise_for_status()
+        except httpx.HTTPStatusError:
+            # Return a structured error payload so MCP tool calls do not crash the
+            # whole ask-anything flow on provider auth/tier limitations.
+            return {
+                "error": "balldontlie_request_failed",
+                "status_code": r.status_code,
+                "path": path,
+                "params": params or {},
+                "message": r.text.strip() or "Request failed",
+            }
         return r.json()
 
 
@@ -47,7 +83,13 @@ mcp = FastMCP("nba-stats")
 # ─── Tools ───────────────────────────────────────────────────────────────────
 
 
-@mcp.tool()
+@mcp.tool(
+    description=(
+        "Fetch NBA games for a specific ISO date (`YYYY-MM-DD`) from balldontlie. "
+        "Use when the user asks for final scores, schedule, or game status on one day; if `date` is omitted, defaults to yesterday for last-night recaps. "
+        "Output is balldontlie `/games` JSON with game records including teams, scores, and status."
+    ),
+)
 async def get_games(date: str | None = None) -> dict:
     """Get NBA games for a given ISO date (YYYY-MM-DD).
 
@@ -59,7 +101,13 @@ async def get_games(date: str | None = None) -> dict:
     return await _bdl_get("/games", params={"dates[]": target, "per_page": 25})
 
 
-@mcp.tool()
+@mcp.tool(
+    description=(
+        "Fuzzy-search NBA players by name via balldontlie `/players`. "
+        "Use when you need to resolve a player's canonical id/team before other calls; not for box scores or game outcomes. "
+        "Parameters: `name` (required search text), `per_page` (max matches to return). Output is balldontlie player-search JSON."
+    ),
+)
 async def search_players(name: str, per_page: int = 5) -> dict:
     """Fuzzy-search NBA players by name (e.g. 'doncic', 'lebron').
 
@@ -68,26 +116,25 @@ async def search_players(name: str, per_page: int = 5) -> dict:
     return await _bdl_get("/players", params={"search": name, "per_page": per_page})
 
 
-@mcp.tool()
-async def player_season_averages(player_id: int, season: int | None = None) -> dict:
-    """Get a player's season averages (PPG, RPG, APG, FG%, 3P%, etc.).
-
-    ``season`` defaults to the *previous* calendar year, which matches the
-    typical NBA regular-season anchor.
-    """
-    season = season or dt.date.today().year - 1
-    return await _bdl_get(
-        "/season_averages", params={"season": season, "player_ids[]": player_id}
-    )
-
-
-@mcp.tool()
+@mcp.tool(
+    description=(
+        "List NBA teams (conference/division metadata) from balldontlie `/teams`. "
+        "Use when you need team ids or basic team context; not for recent results or player lookups. "
+        "Output is balldontlie teams JSON."
+    ),
+)
 async def list_teams() -> dict:
     """List all 30 NBA teams with their conference and division."""
     return await _bdl_get("/teams")
 
 
-@mcp.tool()
+@mcp.tool(
+    description=(
+        "Get a single team's recent games over the last N days using balldontlie `/games`. "
+        "Use for short-term form/streak checks before analysis; requires numeric `team_id` and optional `days` window (default 7). "
+        "Output is balldontlie games JSON filtered by `team_ids[]` and date range."
+    ),
+)
 async def team_recent_games(team_id: int, days: int = 7) -> dict:
     """Get a team's games in the last ``days`` days.
 
@@ -103,39 +150,6 @@ async def team_recent_games(team_id: int, days: int = 7) -> dict:
     )
 
 
-@mcp.tool()
-async def player_stats_by_name(name: str, season: int | None = None) -> dict:
-    """One-shot helper: search by name then fetch season averages.
-
-    Resolves a fuzzy player name (e.g. ``"luka"``) to its top match and
-    returns ``{ "player": {...}, "averages": {...} }``. Saves clients from
-    chaining ``search_players`` then ``player_season_averages`` themselves.
-
-    Returns ``{"player": null}`` if no player matches.
-    """
-    players = await _bdl_get("/players", params={"search": name, "per_page": 1})
-    rows = players.get("data", [])
-    if not rows:
-        return {"player": None, "averages": None, "season": season}
-    player = rows[0]
-    season = season or dt.date.today().year - 1
-    averages = await _bdl_get(
-        "/season_averages", params={"season": season, "player_ids[]": player["id"]}
-    )
-    avg_rows = averages.get("data", [])
-    return {
-        "player": {
-            "id": player["id"],
-            "first_name": player.get("first_name", ""),
-            "last_name": player.get("last_name", ""),
-            "team": player.get("team", {}).get("full_name", ""),
-            "position": player.get("position", ""),
-        },
-        "averages": avg_rows[0] if avg_rows else None,
-        "season": season,
-    }
-
-
 # ─── Resources ───────────────────────────────────────────────────────────────
 
 
@@ -147,8 +161,6 @@ def docs() -> str:
         "Tools:\n"
         "  - get_games(date?)                       last-night results by default\n"
         "  - search_players(name, per_page=5)       fuzzy search\n"
-        "  - player_season_averages(id, season?)    current season by default\n"
-        "  - player_stats_by_name(name, season?)    one-shot search + averages\n"
         "  - list_teams()                           all 30 teams\n"
         "  - team_recent_games(id, days=7)          form/streak inspector\n"
     )

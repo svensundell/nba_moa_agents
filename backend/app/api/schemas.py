@@ -57,7 +57,8 @@ class RunResult(BaseModel):
 
 class HealthResponse(BaseModel):
     status: Literal["ok"]
-    has_groq: bool
+    has_openrouter: bool
+    has_balldontlie: bool
     mcp_initialised: bool
     mcp_servers: list[str]
     mcp_tools: list[str]

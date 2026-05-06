@@ -42,7 +42,7 @@ export interface RunResult {
 export interface AgentMeta {
   agent: string;
   logical_model: string;
-  groq_model: string;
+  provider_model: string;
   description: string;
 }
 
@@ -56,7 +56,8 @@ export async function fetchAgents(): Promise<AgentMeta[]> {
 }
 
 export interface HealthInfo {
-  has_groq: boolean;
+  has_openrouter: boolean;
+  has_balldontlie: boolean;
   mcp_initialised: boolean;
   mcp_servers: string[];
   mcp_tools: string[];

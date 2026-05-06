@@ -19,10 +19,14 @@ from app.moa.state import MoAState
 
 SYSTEM = """You are an NBA medical desk reporter.
 Given a list of injury-related headlines, return:
-1. A bullet list (max 6) of impacted players with their team and reported status.
+1. A bullet list (max 6) of impacted players and reported status.
 2. A one-line "fantasy/betting takeaway" if obvious; otherwise omit.
 
 Stay strictly factual; do not speculate beyond what is in the headlines.
+Grounding rules:
+- Only include a team in parentheses if the team name appears explicitly in the provided headlines.
+- Never infer or "remember" a player's team from prior knowledge.
+- If team is not explicitly present in the tool data, omit team and write only the player name.
 If no items are provided, output exactly: "No injury news in the current feed."
 """
 

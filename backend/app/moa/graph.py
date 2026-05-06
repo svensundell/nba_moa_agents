@@ -8,13 +8,13 @@ Topology::
         ▼      ▼      ▼        ▼          ▼         ▼                  │
      scores  news  stats  injuries   social    baseline (compare-only) │
         └──────┴───┬──┴────────┴──────────┘                            │
-                   ▼                                                    │
-         ┌─────────┴─────────┐                                          │
-         ▼                   ▼                                          │
-      analyst            narrative                                      │
-         └────────┬──────────┘                                          │
-                  ▼                                                     │
-                editor ◀────────────────────────────────────────────────┘
+                   ▼                                                    ▼
+         ┌─────────┴─────────┐                                         END
+         ▼                   ▼
+      analyst            narrative
+         └────────┬──────────┘
+                  ▼
+                editor
 
 LangGraph runs nodes that share an incoming edge in parallel, so all five
 proposers (and the baseline in compare mode) execute concurrently. This is
@@ -52,6 +52,14 @@ async def kickoff(state: MoAState) -> dict:
     }
 
 
+def _next_nodes_after_kickoff(state: MoAState) -> list[str]:
+    """Route baseline only in compare mode."""
+    proposers = ["scores", "news", "stats", "injuries", "social"]
+    if state.get("mode") == "compare":
+        return [*proposers, "baseline"]
+    return proposers
+
+
 def build_graph():
     """Compile the LangGraph state graph.
 
@@ -79,21 +87,19 @@ def build_graph():
     # Edges
     g.add_edge(START, "kickoff")
 
-    # Fan-out from kickoff to all proposers (and baseline)
-    for proposer in ("scores", "news", "stats", "injuries", "social", "baseline"):
-        g.add_edge("kickoff", proposer)
+    # Fan-out from kickoff. Baseline runs only in compare mode.
+    g.add_conditional_edges("kickoff", _next_nodes_after_kickoff)
 
-    # Layer 1 -> Layer 2 (refiners need all proposals)
-    for proposer in ("scores", "news", "stats", "injuries", "social"):
-        g.add_edge(proposer, "analyst")
-        g.add_edge(proposer, "narrative")
+    # Layer 1 -> Layer 2 (explicit barriers: refiners wait for all proposers)
+    proposers = ["scores", "news", "stats", "injuries", "social"]
+    g.add_edge(proposers, "analyst")
+    g.add_edge(proposers, "narrative")
 
-    # Layer 2 -> Layer 3
-    g.add_edge("analyst", "editor")
-    g.add_edge("narrative", "editor")
+    # Layer 2 -> Layer 3 (barrier: wait for BOTH refiners)
+    g.add_edge(["analyst", "narrative"], "editor")
 
-    # Baseline runs independently and joins the END
-    g.add_edge("baseline", "editor")
+    # Baseline stays independent; it should never trigger editor.
+    g.add_edge("baseline", END)
     g.add_edge("editor", END)
 
     return g.compile()

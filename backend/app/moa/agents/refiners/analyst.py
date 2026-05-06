@@ -38,7 +38,7 @@ async def analyst_agent(state: MoAState) -> dict:
 
     ref = AgentRefinement(
         agent="analyst",
-        model=model_id(AGENT_MODELS.get("analyst", "llama-versatile")),
+        model=model_id(AGENT_MODELS.get("analyst", "balanced")),
         content=content,
     )
     return {

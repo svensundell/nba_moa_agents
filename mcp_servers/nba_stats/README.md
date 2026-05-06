@@ -12,9 +12,10 @@ This is the differentiating piece of the project: any MCP-aware LLM client (Clau
 |---|---|
 | `get_games(date?)` | Games for an ISO date (defaults to yesterday) |
 | `search_players(name, per_page=5)` | Fuzzy player search |
-| `player_season_averages(player_id, season?)` | PPG, RPG, APG, FG%, 3P% |
 | `list_teams()` | Roster of the 30 NBA teams |
 | `team_recent_games(team_id, days=7)` | Last week of games for a team |
+
+This server intentionally exposes only endpoints available on balldontlie's free NBA tier.
 
 ## Running standalone
 

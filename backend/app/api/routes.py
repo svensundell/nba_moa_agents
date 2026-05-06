@@ -17,7 +17,7 @@ from app.api.schemas import (
 )
 from app.core.config import get_settings
 from app.mcp.client import mcp_registry
-from app.moa.llm import AGENT_MODELS, MODEL_REGISTRY
+from app.moa.llm import AGENT_MODELS, MODEL_REGISTRY, model_id
 
 router = APIRouter()
 
@@ -27,7 +27,8 @@ async def health() -> HealthResponse:
     settings = get_settings()
     return HealthResponse(
         status="ok",
-        has_groq=settings.has_groq,
+        has_openrouter=settings.has_openrouter,
+        has_balldontlie=settings.has_balldontlie,
         mcp_initialised=mcp_registry.initialised,
         mcp_servers=mcp_registry.server_names,
         mcp_tools=mcp_registry.tool_names,
@@ -42,7 +43,7 @@ async def agents() -> dict:
             {
                 "agent": agent,
                 "logical_model": logical,
-                "groq_model": MODEL_REGISTRY[logical].groq_id,
+                "provider_model": model_id(logical),
                 "description": MODEL_REGISTRY[logical].description,
             }
             for agent, logical in AGENT_MODELS.items()

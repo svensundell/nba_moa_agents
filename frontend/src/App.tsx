@@ -23,7 +23,7 @@ const MODE_LABELS: Record<Mode, string> = {
 
 const MODE_DESCRIPTIONS: Record<Mode, string> = {
   brief: "One-click NBA briefing for last night's action.",
-  query: "Ask any NBA question — answered through 8 agents on 5 models.",
+  query: "Ask any NBA question, answered by a tool-using MCP research agent.",
   compare: "Daily Brief showdown: a single LLM vs the full MoA pipeline.",
 };
 
@@ -44,7 +44,7 @@ export default function App() {
 
   const models = useMemo(() => {
     const map: Record<string, string> = {};
-    for (const a of agents) map[a.agent] = a.groq_model;
+    for (const a of agents) map[a.agent] = a.provider_model;
     return map;
   }, [agents]);
 
@@ -108,7 +108,7 @@ export default function App() {
             />
           )}
           <button className="btn" onClick={start} disabled={running}>
-            {running ? "Agents working..." : "Run pipeline"}
+            {running ? "In progress..." : "Run pipeline"}
           </button>
           {result && (
             <button
@@ -122,20 +122,45 @@ export default function App() {
           )}
         </div>
 
-        <section className="grid gap-4 lg:grid-cols-2">
-          <div>
-            <h2 className="text-sm uppercase tracking-wide text-muted mb-2">
-              Agent graph
-            </h2>
-            <AgentFlow statuses={statuses} models={models} />
-          </div>
-          <div>
-            <h2 className="text-sm uppercase tracking-wide text-muted mb-2">
-              Live trace
-            </h2>
-            <EventLog events={events} />
-          </div>
-        </section>
+        {mode === "query" ? (
+          <section className="grid gap-4 lg:grid-cols-2">
+            <div>
+              <h2 className="text-sm uppercase tracking-wide text-muted mb-2">
+                MCP tool timeline
+              </h2>
+              <ToolTimeline events={events} running={running} />
+            </div>
+            <div>
+              <h2 className="text-sm uppercase tracking-wide text-muted mb-2">
+                Live trace
+              </h2>
+              <EventLog events={events} />
+            </div>
+          </section>
+        ) : (
+          <section className="space-y-6">
+            <div>
+              <h2 className="text-sm uppercase tracking-wide text-muted mb-2">
+                Agent graph
+              </h2>
+              <AgentFlow statuses={statuses} models={models} />
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div>
+                <h2 className="text-sm uppercase tracking-wide text-muted mb-2">
+                  MCP tool timeline
+                </h2>
+                <ToolTimeline events={events} running={running} />
+              </div>
+              <div>
+                <h2 className="text-sm uppercase tracking-wide text-muted mb-2">
+                  Live trace
+                </h2>
+                <EventLog events={events} />
+              </div>
+            </div>
+          </section>
+        )}
 
         {result && <ResultPanel result={result} mode={mode} />}
 
@@ -147,25 +172,48 @@ export default function App() {
 
 function Header({ health }: { health: HealthInfo | null }) {
   const toolCount = health?.mcp_tools.length ?? 0;
-  const serverCount = health?.mcp_servers.length ?? 0;
+  const coreReady = Boolean(health?.has_openrouter) && Boolean(health?.mcp_initialised);
+  const optionalMissing = health?.has_balldontlie === false;
+
+  const statusText = coreReady
+    ? optionalMissing
+      ? "Core providers connected. Optional provider missing: balldontlie."
+      : "All data providers connected."
+    : "Some core providers are not connected.";
+
   return (
     <header className="border-b border-border">
-      <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div className="max-w-7xl mx-auto px-6 py-4">
         <div>
           <h1 className="text-xl font-bold">
             NBA <span className="text-accent">Mixture of Agents</span>
           </h1>
-          <p className="text-xs text-muted mt-0.5">
-            8 specialised agents, 5 Groq models, {serverCount || 3} MCP servers — one briefing.
+          <p className="text-sm text-muted mt-1">
+            Nightly NBA briefing and research workspace.
           </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <HealthPill ok={health?.has_groq} label="Groq" />
-          <HealthPill
-            ok={health?.mcp_initialised}
-            label={`MCP (${toolCount} tools)`}
-            title={health?.mcp_tools.join(", ")}
-          />
+          <p
+            className={clsx("text-xs mt-1", {
+              "text-emerald-300": coreReady && !optionalMissing,
+              "text-amber-300": coreReady && optionalMissing,
+              "text-red-300": !coreReady,
+            })}
+          >
+            {statusText}
+          </p>
+          <div className="flex items-center gap-2 mt-2">
+            <HealthPill ok={health?.has_openrouter} label="OpenRouter" />
+            <HealthPill
+              ok={health?.has_balldontlie}
+              label="balldontlie"
+              optional
+              title="Optional: used by some NBA stats endpoints in Ask Anything"
+            />
+            <HealthPill
+              ok={health?.mcp_initialised}
+              label={`MCP (${toolCount} tools)`}
+              title={health?.mcp_tools.join(", ")}
+            />
+          </div>
         </div>
       </div>
     </header>
@@ -184,13 +232,13 @@ function HealthPill({
   title?: string;
 }) {
   const state =
-    ok === undefined ? "neutral" : ok ? "ok" : optional ? "optional" : "fail";
+    ok === undefined ? "neutral" : ok ? "ok" : optional ? "optional-missing" : "fail";
   return (
     <span
       className={clsx("pill", {
         "border-emerald-500/40 text-emerald-300": state === "ok",
-        "border-red-500/40 text-red-300": state === "fail",
-        "border-border text-muted": state === "optional" || state === "neutral",
+        "border-red-500/40 text-red-300": state === "fail" || state === "optional-missing",
+        "border-border text-muted": state === "neutral",
       })}
       title={title ?? (state === "fail" ? `${label} not configured` : "")}
     >
@@ -231,6 +279,7 @@ function ModeTabs({
 }
 
 function ResultPanel({ result, mode }: { result: RunResult; mode: Mode }) {
+  const toolCalls = result.events.filter((e) => e.type === "tool").length;
   return (
     <section className="space-y-4">
       <div className="flex items-center gap-3 text-sm text-muted">
@@ -238,9 +287,15 @@ function ResultPanel({ result, mode }: { result: RunResult; mode: Mode }) {
           Done in <strong className="text-slate-200">{result.duration_seconds.toFixed(1)}s</strong>
         </span>
         <span>•</span>
-        <span>{result.proposals.length} proposers</span>
-        <span>•</span>
-        <span>{result.refinements.length} refiners</span>
+        {mode === "query" ? (
+          <span>{toolCalls} MCP tool call(s)</span>
+        ) : (
+          <>
+            <span>{result.proposals.length} proposers</span>
+            <span>•</span>
+            <span>{result.refinements.length} refiners</span>
+          </>
+        )}
       </div>
 
       {mode === "compare" ? (
@@ -267,42 +322,111 @@ function ResultPanel({ result, mode }: { result: RunResult; mode: Mode }) {
         </div>
       )}
 
-      <details className="card">
-        <summary className="cursor-pointer font-semibold text-slate-200">
-          Raw proposals & refinements ({result.proposals.length + result.refinements.length})
-        </summary>
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {result.proposals.map((p) => (
-            <div key={p.agent} className="rounded-lg border border-border p-3">
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold text-slate-100 text-sm">{p.agent}</span>
-                <span className="text-[10px] font-mono text-muted">{p.model}</span>
+      {mode !== "query" && (
+        <details className="card">
+          <summary className="cursor-pointer font-semibold text-slate-200">
+            Raw proposals & refinements ({result.proposals.length + result.refinements.length})
+          </summary>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {result.proposals.map((p) => (
+              <div key={p.agent} className="rounded-lg border border-border p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-slate-100 text-sm">{p.agent}</span>
+                  <span className="text-[10px] font-mono text-muted">{p.model}</span>
+                </div>
+                <p className="text-xs text-slate-300 whitespace-pre-wrap">{p.summary}</p>
               </div>
-              <p className="text-xs text-slate-300 whitespace-pre-wrap">{p.summary}</p>
-            </div>
-          ))}
-          {result.refinements.map((r) => (
-            <div
-              key={r.agent}
-              className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3"
-            >
-              <div className="flex items-center justify-between mb-2">
-                <span className="font-semibold text-sky-200 text-sm">{r.agent}</span>
-                <span className="text-[10px] font-mono text-muted">{r.model}</span>
+            ))}
+            {result.refinements.map((r) => (
+              <div
+                key={r.agent}
+                className="rounded-lg border border-sky-500/30 bg-sky-500/5 p-3"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className="font-semibold text-sky-200 text-sm">{r.agent}</span>
+                  <span className="text-[10px] font-mono text-muted">{r.model}</span>
+                </div>
+                <p className="text-xs text-slate-300 whitespace-pre-wrap">{r.content}</p>
               </div>
-              <p className="text-xs text-slate-300 whitespace-pre-wrap">{r.content}</p>
-            </div>
-          ))}
-        </div>
-      </details>
+            ))}
+          </div>
+        </details>
+      )}
     </section>
+  );
+}
+
+type ToolStep = {
+  at: string;
+  tool: string;
+  preview: string;
+};
+
+function ToolTimeline({
+  events,
+  running,
+}: {
+  events: AgentEvent[];
+  running: boolean;
+}) {
+  const steps = useMemo<ToolStep[]>(() => {
+    return events
+      .filter((e) => e.type === "tool")
+      .map((e) => {
+        const [left, ...rest] = e.content.split(":");
+        const preview = rest.join(":").trim() || e.content;
+        return {
+          at: new Date(e.timestamp).toLocaleTimeString(),
+          tool: left.trim(),
+          preview,
+        };
+      });
+  }, [events]);
+
+  const hasError = events.some((e) => e.type === "error");
+  const started = events.some((e) => e.type === "start");
+
+  return (
+    <div className="card h-[460px] overflow-y-auto">
+      <div className="flex items-center gap-2 mb-3">
+        <span className="pill border-fuchsia-500/40 text-fuchsia-200">
+          {steps.length} tool call(s)
+        </span>
+        {running && <span className="pill">running</span>}
+        {hasError && <span className="pill border-red-500/40 text-red-300">error</span>}
+      </div>
+
+      {!started && (
+        <p className="text-sm text-muted italic">
+          Run a query to see which MCP tools the ask-anything agent decides to use.
+        </p>
+      )}
+
+      {started && steps.length === 0 && !hasError && (
+        <p className="text-sm text-muted italic">
+          Agent started. Waiting for first tool decision...
+        </p>
+      )}
+
+      <div className="space-y-3">
+        {steps.map((s, idx) => (
+          <div key={`${s.at}-${idx}`} className="rounded-lg border border-border p-3 bg-ink/30">
+            <div className="flex items-center justify-between gap-3">
+              <span className="text-xs font-mono text-fuchsia-200">{s.tool}</span>
+              <span className="text-[11px] text-muted">{s.at}</span>
+            </div>
+            <p className="text-xs text-slate-300 mt-2 whitespace-pre-wrap">{s.preview}</p>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
 function Footer() {
   return (
     <footer className="text-xs text-muted text-center py-6 border-t border-border">
-      Built with LangGraph · Groq · Model Context Protocol · React Flow
+      Built with LangGraph · OpenRouter · Model Context Protocol · React Flow
     </footer>
   );
 }
