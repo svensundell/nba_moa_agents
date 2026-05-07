@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import {
   type ChatMessage,
+  type LanguageCode,
   fetchAgents,
   fetchHealth,
   streamRun,
@@ -16,19 +17,130 @@ import { Markdown } from "./components/Markdown";
 
 type Mode = "brief" | "query" | "compare";
 
-const MODE_LABELS: Record<Mode, string> = {
-  brief: "Daily Brief",
-  query: "NBA Copilot",
-  compare: "MoA vs Single LLM",
-};
-
-const MODE_DESCRIPTIONS: Record<Mode, string> = {
-  brief: "One-click NBA briefing for last night's action.",
-  query: "Chat with NBA Copilot — a tool-using MCP research assistant.",
-  compare: "Daily Brief showdown: a single LLM vs the full MoA pipeline.",
+const UI_TEXT: Record<
+  LanguageCode,
+  {
+    modeLabels: Record<Mode, string>;
+    modeDescriptions: Record<Mode, string>;
+    askPlaceholder: string;
+    send: string;
+    runPipeline: string;
+    reset: string;
+    inProgress: string;
+    chat: string;
+    mcpTimeline: string;
+    liveTrace: string;
+    agentGraph: string;
+    doneIn: string;
+    toolCalls: string;
+    proposers: string;
+    refiners: string;
+    singleLlm: string;
+    moa: string;
+    finalBriefing: string;
+    finalAnswer: string;
+    rawSection: string;
+    footer: string;
+    healthCoreConnected: string;
+    healthCoreConnectedOptional: string;
+    healthDisconnected: string;
+    healthBallTitle: string;
+    toolTimelineIdle: string;
+    toolTimelineWaiting: string;
+    chatEmpty: string;
+    userLabel: string;
+    assistantLabel: string;
+    assistantThinking: string;
+  }
+> = {
+  en: {
+    modeLabels: {
+      brief: "Daily Brief",
+      query: "NBA Copilot",
+      compare: "MoA vs Single LLM",
+    },
+    modeDescriptions: {
+      brief: "One-click NBA briefing for last night's action.",
+      query: "Chat with NBA Copilot - a tool-using MCP research assistant.",
+      compare: "Daily Brief showdown: a single LLM vs the full MoA pipeline.",
+    },
+    askPlaceholder: "Ask an NBA question...",
+    send: "Send",
+    runPipeline: "Run pipeline",
+    reset: "Reset",
+    inProgress: "In progress...",
+    chat: "Chat",
+    mcpTimeline: "MCP tool timeline",
+    liveTrace: "Live trace",
+    agentGraph: "Agent graph",
+    doneIn: "Done in",
+    toolCalls: "MCP tool call(s)",
+    proposers: "proposers",
+    refiners: "refiners",
+    singleLlm: "Single LLM (baseline)",
+    moa: "Mixture of Agents",
+    finalBriefing: "Final briefing",
+    finalAnswer: "Final answer",
+    rawSection: "Raw proposals & refinements",
+    footer: "Built with LangGraph - OpenRouter - Model Context Protocol - React Flow",
+    healthCoreConnected: "All data providers connected.",
+    healthCoreConnectedOptional: "Core providers connected. Optional provider missing: balldontlie.",
+    healthDisconnected: "Some core providers are not connected.",
+    healthBallTitle: "Optional: used by some NBA stats endpoints in NBA Copilot",
+    toolTimelineIdle: "Send a message to see which MCP tools NBA Copilot decides to use.",
+    toolTimelineWaiting: "Agent started. Waiting for first tool decision...",
+    chatEmpty: "Start a conversation with NBA Copilot.",
+    userLabel: "You",
+    assistantLabel: "Assistant",
+    assistantThinking: "Assistant is thinking...",
+  },
+  fr: {
+    modeLabels: {
+      brief: "Brief quotidien",
+      query: "NBA Copilot",
+      compare: "MoA vs LLM unique",
+    },
+    modeDescriptions: {
+      brief: "Un clic pour resumer les matchs de la veille.",
+      query: "Discutez avec NBA Copilot, un assistant MCP avec outils.",
+      compare: "Comparaison brief quotidien : LLM unique vs pipeline MoA.",
+    },
+    askPlaceholder: "Posez une question NBA...",
+    send: "Envoyer",
+    runPipeline: "Lancer le pipeline",
+    reset: "Reinitialiser",
+    inProgress: "En cours...",
+    chat: "Chat",
+    mcpTimeline: "Timeline des outils MCP",
+    liveTrace: "Trace en direct",
+    agentGraph: "Graphe des agents",
+    doneIn: "Termine en",
+    toolCalls: "appel(s) d'outils MCP",
+    proposers: "proposers",
+    refiners: "refiners",
+    singleLlm: "LLM unique (baseline)",
+    moa: "Mixture of Agents",
+    finalBriefing: "Brief final",
+    finalAnswer: "Reponse finale",
+    rawSection: "Proposals & refinements bruts",
+    footer: "Construit avec LangGraph - OpenRouter - Model Context Protocol - React Flow",
+    healthCoreConnected: "Tous les fournisseurs de donnees sont connectes.",
+    healthCoreConnectedOptional:
+      "Fournisseurs principaux connectes. Fournisseur optionnel manquant : balldontlie.",
+    healthDisconnected: "Certains fournisseurs principaux ne sont pas connectes.",
+    healthBallTitle: "Optionnel : utilise par certains endpoints NBA Stats dans NBA Copilot",
+    toolTimelineIdle:
+      "Envoyez un message pour voir quels outils MCP NBA Copilot decide d'utiliser.",
+    toolTimelineWaiting: "Agent demarre. En attente de la premiere decision d'outil...",
+    chatEmpty: "Demarrez une conversation avec NBA Copilot.",
+    userLabel: "Vous",
+    assistantLabel: "Assistant",
+    assistantThinking: "Assistant en train de reflechir...",
+  },
 };
 
 export default function App() {
+  const [language, setLanguage] = useState<LanguageCode>("fr");
   const [mode, setMode] = useState<Mode>("brief");
   const [query, setQuery] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
@@ -38,6 +150,7 @@ export default function App() {
   const [result, setResult] = useState<RunResult | null>(null);
   const [agents, setAgents] = useState<AgentMeta[]>([]);
   const [health, setHealth] = useState<HealthInfo | null>(null);
+  const ui = UI_TEXT[language];
 
   useEffect(() => {
     fetchAgents().then(setAgents).catch(() => setAgents([]));
@@ -81,6 +194,7 @@ export default function App() {
     setRunning(true);
     streamRun({
       mode,
+      language,
       query: mode === "query" ? "" : trimmedQuery,
       messages: mode === "query" ? messagesForQuery : [],
       onFrame: (frame) => {
@@ -141,17 +255,23 @@ export default function App() {
       />
       <div className="absolute inset-0 bg-gradient-to-r from-ink/85 via-ink/55 to-ink/85 pointer-events-none z-0" />
       <div className="relative z-10">
-        <Header health={health} />
+        <Header health={health} language={language} setLanguage={setLanguage} ui={ui} />
       </div>
 
       <main className="relative z-10 max-w-7xl mx-auto px-6 py-6 space-y-6">
-        <ModeTabs mode={mode} onChange={setMode} disabled={running} />
+        <ModeTabs
+          mode={mode}
+          onChange={setMode}
+          disabled={running}
+          labels={ui.modeLabels}
+          descriptions={ui.modeDescriptions}
+        />
 
         <div className="card flex flex-col md:flex-row md:items-center gap-3">
           {mode === "query" && (
             <input
               className="input flex-1"
-              placeholder="Ask an NBA question..."
+              placeholder={ui.askPlaceholder}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               disabled={running}
@@ -159,16 +279,16 @@ export default function App() {
             />
           )}
           <button className="btn" onClick={start} disabled={running}>
-            {running ? "In progress..." : mode === "query" ? "Send" : "Run pipeline"}
+            {running ? ui.inProgress : mode === "query" ? ui.send : ui.runPipeline}
           </button>
           {(result || chatMessages.length > 0) && (
             <button
               className="btn-secondary"
               onClick={resetConversation}
               disabled={running}
-              title="Clear and start fresh"
+              title={ui.reset}
             >
-              Reset
+              {ui.reset}
             </button>
           )}
         </div>
@@ -177,20 +297,20 @@ export default function App() {
           <section className="space-y-4">
             <div>
               <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
-                Chat
+                  {ui.chat}
               </h2>
-              <ChatTranscript messages={chatMessages} running={running} />
+              <ChatTranscript messages={chatMessages} running={running} ui={ui} />
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <div>
                 <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
-                  MCP tool timeline
+                  {ui.mcpTimeline}
                 </h2>
-                <ToolTimeline events={events} running={running} />
+                <ToolTimeline events={events} running={running} ui={ui} />
               </div>
               <div>
                 <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
-                  Live trace
+                  {ui.liveTrace}
                 </h2>
                 <EventLog events={events} />
               </div>
@@ -200,20 +320,20 @@ export default function App() {
           <section className="space-y-6">
             <div>
               <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
-                Agent graph
+                {ui.agentGraph}
               </h2>
               <AgentFlow statuses={statuses} models={models} />
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <div>
                 <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
-                  MCP tool timeline
+                  {ui.mcpTimeline}
                 </h2>
-                <ToolTimeline events={events} running={running} />
+                <ToolTimeline events={events} running={running} ui={ui} />
               </div>
               <div>
                 <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
-                  Live trace
+                  {ui.liveTrace}
                 </h2>
                 <EventLog events={events} />
               </div>
@@ -221,24 +341,34 @@ export default function App() {
           </section>
         )}
 
-        {result && mode !== "query" && <ResultPanel result={result} mode={mode} />}
+        {result && mode !== "query" && <ResultPanel result={result} mode={mode} ui={ui} />}
 
-        <Footer />
+        <Footer ui={ui} />
       </main>
     </div>
   );
 }
 
-function Header({ health }: { health: HealthInfo | null }) {
+function Header({
+  health,
+  language,
+  setLanguage,
+  ui,
+}: {
+  health: HealthInfo | null;
+  language: LanguageCode;
+  setLanguage: (language: LanguageCode) => void;
+  ui: (typeof UI_TEXT)["en"];
+}) {
   const toolCount = health?.mcp_tools.length ?? 0;
   const coreReady = Boolean(health?.has_openrouter) && Boolean(health?.mcp_initialised);
   const optionalMissing = health?.has_balldontlie === false;
 
   const statusText = coreReady
     ? optionalMissing
-      ? "Core providers connected. Optional provider missing: balldontlie."
-      : "All data providers connected."
-    : "Some core providers are not connected.";
+      ? ui.healthCoreConnectedOptional
+      : ui.healthCoreConnected
+    : ui.healthDisconnected;
 
   return (
     <header className="border-b border-border">
@@ -254,8 +384,32 @@ function Header({ health }: { health: HealthInfo | null }) {
               NBA <span className="text-accent">MCP & Mixture of Agents</span>
             </h1>
             <p className="text-base text-muted mt-1">
-              Nightly NBA briefing and research workspace.
+              {language === "fr"
+                ? "Espace de brief NBA quotidien et de recherche."
+                : "Nightly NBA briefing and research workspace."}
             </p>
+            <div className="mt-2 flex gap-2">
+              <button
+                className={clsx("pill", {
+                  "border-accent bg-amber-50 text-amber-700": language === "fr",
+                  "border-border text-muted": language !== "fr",
+                })}
+                onClick={() => setLanguage("fr")}
+                type="button"
+              >
+                FR
+              </button>
+              <button
+                className={clsx("pill", {
+                  "border-accent bg-amber-50 text-amber-700": language === "en",
+                  "border-border text-muted": language !== "en",
+                })}
+                onClick={() => setLanguage("en")}
+                type="button"
+              >
+                EN
+              </button>
+            </div>
             <p
               className={clsx("text-sm mt-1", {
                 "text-emerald-700": coreReady && !optionalMissing,
@@ -271,7 +425,7 @@ function Header({ health }: { health: HealthInfo | null }) {
                 ok={health?.has_balldontlie}
                 label="balldontlie"
                 optional
-                title="Optional: used by some NBA stats endpoints in NBA Copilot"
+                title={ui.healthBallTitle}
               />
               <HealthPill
                 ok={health?.mcp_initialised}
@@ -317,14 +471,18 @@ function ModeTabs({
   mode,
   onChange,
   disabled,
+  labels,
+  descriptions,
 }: {
   mode: Mode;
   onChange: (m: Mode) => void;
   disabled: boolean;
+  labels: Record<Mode, string>;
+  descriptions: Record<Mode, string>;
 }) {
   return (
     <div className="grid gap-3 md:grid-cols-3">
-      {(Object.keys(MODE_LABELS) as Mode[]).map((m) => (
+      {(Object.keys(labels) as Mode[]).map((m) => (
         <button
           key={m}
           onClick={() => onChange(m)}
@@ -336,30 +494,45 @@ function ModeTabs({
               : "hover:border-slate-300",
           )}
         >
-          <div className="text-lg font-semibold">{MODE_LABELS[m]}</div>
-          <div className="text-base text-muted mt-1">{MODE_DESCRIPTIONS[m]}</div>
+          <div className="text-lg font-semibold">{labels[m]}</div>
+          <div className="text-base text-muted mt-1">{descriptions[m]}</div>
         </button>
       ))}
     </div>
   );
 }
 
-function ResultPanel({ result, mode }: { result: RunResult; mode: Mode }) {
+function ResultPanel({
+  result,
+  mode,
+  ui,
+}: {
+  result: RunResult;
+  mode: Mode;
+  ui: (typeof UI_TEXT)["en"];
+}) {
   const toolCalls = result.events.filter((e) => e.type === "tool").length;
   return (
     <section className="space-y-4">
       <div className="flex items-center gap-3 text-base text-muted">
         <span>
-          Done in <strong className="text-slate-900 text-lg">{result.duration_seconds.toFixed(1)}s</strong>
+          {ui.doneIn}{" "}
+          <strong className="text-slate-900 text-lg">{result.duration_seconds.toFixed(1)}s</strong>
         </span>
         <span>•</span>
         {mode === "query" ? (
-          <span>{toolCalls} MCP tool call(s)</span>
+          <span>
+            {toolCalls} {ui.toolCalls}
+          </span>
         ) : (
           <>
-            <span>{result.proposals.length} proposers</span>
+            <span>
+              {result.proposals.length} {ui.proposers}
+            </span>
             <span>•</span>
-            <span>{result.refinements.length} refiners</span>
+            <span>
+              {result.refinements.length} {ui.refiners}
+            </span>
           </>
         )}
       </div>
@@ -368,13 +541,13 @@ function ResultPanel({ result, mode }: { result: RunResult; mode: Mode }) {
         <div className="grid gap-4 lg:grid-cols-2">
           <div className="card">
             <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-3">
-              Single LLM (baseline)
+              {ui.singleLlm}
             </h3>
             <Markdown content={result.single_llm_answer || "(empty)"} />
           </div>
           <div className="card border-accent/40 bg-amber-50/60">
             <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-accent mb-3">
-              Mixture of Agents
+              {ui.moa}
             </h3>
             <Markdown content={result.final_brief || "(empty)"} />
           </div>
@@ -382,7 +555,7 @@ function ResultPanel({ result, mode }: { result: RunResult; mode: Mode }) {
       ) : (
         <div className="card">
           <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-accent mb-3">
-            Final {mode === "brief" ? "briefing" : "answer"}
+            {mode === "brief" ? ui.finalBriefing : ui.finalAnswer}
           </h3>
           <Markdown content={result.final_brief || "(empty)"} />
         </div>
@@ -391,7 +564,7 @@ function ResultPanel({ result, mode }: { result: RunResult; mode: Mode }) {
       {mode !== "query" && (
         <details className="card">
           <summary className="cursor-pointer text-lg font-semibold text-slate-900">
-            Raw proposals & refinements ({result.proposals.length + result.refinements.length})
+            {ui.rawSection} ({result.proposals.length + result.refinements.length})
           </summary>
           <div className="mt-4 grid gap-3 md:grid-cols-2">
             {result.proposals.map((p) => (
@@ -431,9 +604,11 @@ type ToolStep = {
 function ToolTimeline({
   events,
   running,
+  ui,
 }: {
   events: AgentEvent[];
   running: boolean;
+  ui: (typeof UI_TEXT)["en"];
 }) {
   const steps = useMemo<ToolStep[]>(() => {
     return events
@@ -464,13 +639,13 @@ function ToolTimeline({
 
       {!started && (
         <p className="text-base text-muted italic">
-          Send a message to see which MCP tools NBA Copilot decides to use.
+          {ui.toolTimelineIdle}
         </p>
       )}
 
       {started && steps.length === 0 && !hasError && (
         <p className="text-base text-muted italic">
-          Agent started. Waiting for first tool decision...
+          {ui.toolTimelineWaiting}
         </p>
       )}
 
@@ -492,15 +667,17 @@ function ToolTimeline({
 function ChatTranscript({
   messages,
   running,
+  ui,
 }: {
   messages: ChatMessage[];
   running: boolean;
+  ui: (typeof UI_TEXT)["en"];
 }) {
   return (
     <div className="card h-[420px] overflow-y-auto space-y-3">
       {messages.length === 0 && (
         <p className="text-base text-muted italic">
-          Start a conversation with NBA Copilot.
+          {ui.chatEmpty}
         </p>
       )}
       {messages.map((message, idx) => (
@@ -512,7 +689,7 @@ function ChatTranscript({
           })}
         >
           <div className="text-xs uppercase tracking-[0.08em] text-muted mb-1">
-            {message.role === "user" ? "You" : "Assistant"}
+            {message.role === "user" ? ui.userLabel : ui.assistantLabel}
           </div>
           {message.role === "assistant" ? (
             <Markdown content={message.content} />
@@ -521,15 +698,15 @@ function ChatTranscript({
           )}
         </div>
       ))}
-      {running && <p className="text-sm text-muted italic">Assistant is thinking...</p>}
+      {running && <p className="text-sm text-muted italic">{ui.assistantThinking}</p>}
     </div>
   );
 }
 
-function Footer() {
+function Footer({ ui }: { ui: (typeof UI_TEXT)["en"] }) {
   return (
     <footer className="text-sm text-muted text-center py-6 border-t border-border mt-2">
-      Built with LangGraph · OpenRouter · Model Context Protocol · React Flow
+      {ui.footer}
     </footer>
   );
 }

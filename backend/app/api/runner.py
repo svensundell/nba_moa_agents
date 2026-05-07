@@ -64,13 +64,14 @@ async def run_full(
     query: str = "",
     messages: list[dict[str, str]] | None = None,
     date: str | None = None,
+    language: Literal["en", "fr"] = "en",
 ) -> RunResult:
     """Run the graph end-to-end and return the consolidated RunResult."""
     if mode == "query":
-        return await run_open_query(query=query, messages=messages, date=date)
+        return await run_open_query(query=query, messages=messages, date=date, language=language)
 
     started_at = datetime.now()
-    state: MoAState = initial_state(mode, query=query, date=date)
+    state: MoAState = initial_state(mode, query=query, date=date, language=language)
     final_state = await GRAPH.ainvoke(state)
     logger.info(
         f"Pipeline done in {(datetime.now() - started_at).total_seconds():.1f}s "
@@ -85,6 +86,7 @@ async def run_streaming(
     query: str = "",
     messages: list[dict[str, str]] | None = None,
     date: str | None = None,
+    language: Literal["en", "fr"] = "en",
 ) -> AsyncIterator[dict]:
     """Async iterator yielding JSON-serialisable frames as the pipeline runs.
 
@@ -95,12 +97,17 @@ async def run_streaming(
         {"kind": "result", "result": <RunResult>}
     """
     if mode == "query":
-        async for frame in stream_open_query_frames(query=query, messages=messages, date=date):
+        async for frame in stream_open_query_frames(
+            query=query,
+            messages=messages,
+            date=date,
+            language=language,
+        ):
             yield frame
         return
 
     started_at = datetime.now()
-    state: MoAState = initial_state(mode, query=query, date=date)
+    state: MoAState = initial_state(mode, query=query, date=date, language=language)
 
     yield {"kind": "started", "at": started_at.isoformat(), "mode": mode}
 

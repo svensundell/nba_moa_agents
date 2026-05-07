@@ -19,7 +19,7 @@ from app.mcp.client import mcp_registry
 from app.moa.llm import AGENT_MODELS, get_model, model_id
 from app.moa.state import AgentEvent
 
-NBA_COPILOT_SYSTEM = """You are an NBA research assistant with access to MCP tools.
+NBA_COPILOT_SYSTEM_BASE = """You are an NBA research assistant with access to MCP tools.
 
 Your goal is to answer the user's question with concrete, up-to-date evidence.
 
@@ -33,6 +33,15 @@ Rules:
 - If season averages are unavailable, explicitly say they are unavailable due provider/API plan limits.
 - End with a concise markdown answer with optional bullet points.
 """
+
+
+def _language_instruction(language: str) -> str:
+    if language == "fr":
+        return (
+            "Final answer language: French.\n"
+            "Write your final answer in French."
+        )
+    return "Final answer language: English.\nWrite your final answer in English."
 
 
 def _event(
@@ -166,7 +175,7 @@ def _tool_events(messages: list[BaseMessage]) -> list[AgentEvent]:
     return events
 
 
-def _build_nba_copilot_agent() -> tuple[Any, str, str, list[Any]]:
+def _build_nba_copilot_agent(language: str) -> tuple[Any, str, str, list[Any]]:
     """Create model+agent and return (agent, model_name, model_label, tools)."""
     model_name = AGENT_MODELS.get("nba_copilot", "open_query")
     model = get_model(model_name, temperature=0.1)
@@ -177,7 +186,7 @@ def _build_nba_copilot_agent() -> tuple[Any, str, str, list[Any]]:
     agent = create_agent(
         model=model,
         tools=tools,
-        system_prompt=NBA_COPILOT_SYSTEM,
+        system_prompt=f"{NBA_COPILOT_SYSTEM_BASE}\n\n{_language_instruction(language)}",
     )
     return agent, model_name, model_label, tools
 
@@ -186,11 +195,12 @@ async def stream_open_query_frames(
     query: str,
     messages: list[dict[str, str]] | None = None,
     date: str | None = None,
+    language: str = "en",
 ) -> AsyncIterator[dict[str, Any]]:
     """Stream NBA Copilot frames live for websocket clients."""
     started_at = datetime.now()
     date_value = date or datetime.now().date().isoformat()
-    agent, _model_name, model_label, tools = _build_nba_copilot_agent()
+    agent, _model_name, model_label, tools = _build_nba_copilot_agent(language)
     input_messages = _build_input_messages(query=query, messages=messages)
 
     events: list[AgentEvent] = [
@@ -271,11 +281,12 @@ async def run_open_query(
     query: str,
     messages: list[dict[str, str]] | None = None,
     date: str | None = None,
+    language: str = "en",
 ) -> RunResult:
     """Run the NBA Copilot tool-using agent and return RunResult."""
     started_at = datetime.now()
     date_value = date or datetime.now().date().isoformat()
-    agent, _model_name, model_label, tools = _build_nba_copilot_agent()
+    agent, _model_name, model_label, tools = _build_nba_copilot_agent(language)
     input_messages = _build_input_messages(query=query, messages=messages)
 
     events: list[AgentEvent] = [

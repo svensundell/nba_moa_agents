@@ -22,6 +22,11 @@ from app.moa.llm import AGENT_MODELS, MODEL_REGISTRY, model_id
 router = APIRouter()
 
 
+def _normalise_language(language: str | None) -> str:
+    value = (language or "en").strip().lower()
+    return value if value in {"en", "fr"} else "en"
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     settings = get_settings()
@@ -53,7 +58,7 @@ async def agents() -> dict:
 
 @router.post("/brief", response_model=RunResult)
 async def brief(req: BriefRequest) -> RunResult:
-    return await run_full("brief", date=req.date)
+    return await run_full("brief", date=req.date, language=_normalise_language(req.language))
 
 
 @router.post("/query", response_model=RunResult)
@@ -65,12 +70,18 @@ async def query(req: QueryRequest) -> RunResult:
         query=req.query,
         messages=[m.model_dump(mode="json") for m in req.messages],
         date=req.date,
+        language=_normalise_language(req.language),
     )
 
 
 @router.post("/compare", response_model=RunResult)
 async def compare(req: CompareRequest) -> RunResult:
-    return await run_full("compare", query=req.query, date=req.date)
+    return await run_full(
+        "compare",
+        query=req.query,
+        date=req.date,
+        language=_normalise_language(req.language),
+    )
 
 
 @router.websocket("/ws/run")
@@ -107,6 +118,7 @@ async def ws_run(websocket: WebSocket) -> None:
             query=payload.get("query", ""),
             messages=payload.get("messages"),
             date=payload.get("date"),
+            language=_normalise_language(str(payload.get("language", "en"))),
         ):
             await websocket.send_json(frame)
 

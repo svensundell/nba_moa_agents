@@ -69,6 +69,15 @@ data points. When evidence is thin, say so explicitly rather than guessing.
 """
 
 
+def _language_instruction(language: str) -> str:
+    if language == "fr":
+        return (
+            "Write the final output in French.\n"
+            "Keep section headings and prose in French."
+        )
+    return "Write the final output in English."
+
+
 def _drafts_block(state: MoAState) -> str:
     return "\n\n".join(
         f"### {p.agent} (model: {p.model})\n{p.summary}" for p in state.get("proposals", [])
@@ -83,6 +92,7 @@ def _refinements_block(state: MoAState) -> str:
 
 async def editor_agent(state: MoAState) -> dict:
     mode = state.get("mode", "brief")
+    language = state.get("language", "en")
     date = state.get("date", "")
     query = state.get("query", "")
 
@@ -90,14 +100,14 @@ async def editor_agent(state: MoAState) -> dict:
     refinements = _refinements_block(state)
 
     if mode == "query":
-        system = QUERY_SYSTEM
+        system = f"{QUERY_SYSTEM}\n\n{_language_instruction(language)}"
         user = (
             f"User question: {query}\n\n"
             f"Refinements:\n{refinements}\n\n"
             f"Raw drafts:\n{drafts}\n\nWrite the answer."
         )
     else:
-        system = BRIEF_SYSTEM.replace("{date}", date)
+        system = f"{BRIEF_SYSTEM.replace('{date}', date)}\n\n{_language_instruction(language)}"
         user = (
             f"Refinements:\n{refinements}\n\n"
             f"Raw drafts:\n{drafts}\n\n"
@@ -126,8 +136,10 @@ async def baseline_agent(state: MoAState) -> dict:
     """Single-shot single-model answer used by the 'compare' mode."""
     if state.get("mode") != "compare":
         return {"single_llm_answer": ""}
+    language = state.get("language", "en")
     query = state.get("query") or "Give me a daily NBA briefing."
-    answer = await call_llm("single_llm_baseline", system=BASELINE_SYSTEM, user=query)
+    system = f"{BASELINE_SYSTEM}\n\n{_language_instruction(language)}"
+    answer = await call_llm("single_llm_baseline", system=system, user=query)
     model = model_id(AGENT_MODELS.get("single_llm_baseline", "balanced"))
     return {
         "single_llm_answer": answer,

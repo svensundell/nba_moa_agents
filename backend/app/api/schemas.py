@@ -9,9 +9,12 @@ from pydantic import BaseModel, Field
 
 from app.moa.state import AgentEvent
 
+LanguageCode = Literal["en", "fr"]
+
 
 class BriefRequest(BaseModel):
     date: str | None = Field(default=None, description="ISO date (YYYY-MM-DD), defaults to yesterday.")
+    language: LanguageCode = Field(default="en", description="Output language (`en` or `fr`).")
 
 
 class ChatMessage(BaseModel):
@@ -28,6 +31,7 @@ class QueryRequest(BaseModel):
         description="Single-turn input kept for backwards compatibility.",
     )
     date: str | None = None
+    language: LanguageCode = Field(default="en", description="Output language (`en` or `fr`).")
     messages: list[ChatMessage] = Field(
         default_factory=list,
         description="Optional conversation history for multi-turn NBA Copilot chat.",
@@ -41,6 +45,7 @@ class CompareRequest(BaseModel):
         description="Optional comparison prompt. Empty query runs daily brief comparison.",
     )
     date: str | None = None
+    language: LanguageCode = Field(default="en", description="Output language (`en` or `fr`).")
 
 
 class ProposalView(BaseModel):

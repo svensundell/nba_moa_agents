@@ -51,6 +51,8 @@ export interface ChatMessage {
   content: string;
 }
 
+export type LanguageCode = "en" | "fr";
+
 const base = "/api";
 
 export async function fetchAgents(): Promise<AgentMeta[]> {
@@ -84,6 +86,7 @@ export type StreamFrame =
 
 export interface RunOptions {
   mode: "brief" | "query" | "compare";
+  language: LanguageCode;
   query?: string;
   messages?: ChatMessage[];
   date?: string | null;
@@ -99,6 +102,7 @@ export function streamRun(opts: RunOptions): { close: () => void } {
     ws.send(
       JSON.stringify({
         mode: opts.mode,
+        language: opts.language,
         query: opts.query ?? "",
         messages: opts.messages ?? [],
         date: opts.date ?? null,

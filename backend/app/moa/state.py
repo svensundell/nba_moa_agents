@@ -62,6 +62,7 @@ class MoAState(TypedDict, total=False):
 
     # input
     mode: Literal["brief", "query", "compare"]
+    language: Literal["en", "fr"]
     query: str
     date: str  # ISO date the briefing/query is anchored on
 
@@ -85,9 +86,11 @@ def initial_state(
     mode: Literal["brief", "query", "compare"],
     query: str = "",
     date: str | None = None,
+    language: Literal["en", "fr"] = "en",
 ) -> MoAState:
     return MoAState(
         mode=mode,
+        language=language,
         query=query,
         date=date or datetime.now().date().isoformat(),
         proposals=[],
