@@ -22,6 +22,8 @@ dependencies = [
     # MCP client
     "mcp>=1.0.0",
     "langchain-mcp-adapters>=0.0.3",
+    # Persistence (evaluation metrics)
+    "aiosqlite>=0.20.0",
     # Utilities
     "loguru>=0.7.2",
     "python-dateutil>=2.9.0",

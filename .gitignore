@@ -20,6 +20,10 @@ logs/
 *.log
 data/briefs/*.md
 !data/briefs/.gitkeep
+data/*.db
+data/*.db-journal
+data/*.db-shm
+data/*.db-wal
 
 # Knowledge graph outputs
 graphify-out/
