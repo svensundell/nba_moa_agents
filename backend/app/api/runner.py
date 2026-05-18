@@ -173,21 +173,22 @@ async def run_streaming(
     with use_tracker(tracker):
         if mode == "query":
             final_result: RunResult | None = None
-            async for frame in stream_open_query_frames(
-                query=query,
-                messages=messages,
-                date=date,
-                language=language,
-            ):
-                if frame.get("kind") == "result":
-                    final_result = RunResult.model_validate(frame["result"])
-                    metrics = tracker.finalize()
-                    final_result.metrics = metrics
-                    frame = {
-                        "kind": "result",
-                        "result": final_result.model_dump(mode="json"),
-                    }
-                yield frame
+            async with tracker.time_agent("nba_copilot"):
+                async for frame in stream_open_query_frames(
+                    query=query,
+                    messages=messages,
+                    date=date,
+                    language=language,
+                ):
+                    if frame.get("kind") == "result":
+                        final_result = RunResult.model_validate(frame["result"])
+                        metrics = tracker.finalize()
+                        final_result.metrics = metrics
+                        frame = {
+                            "kind": "result",
+                            "result": final_result.model_dump(mode="json"),
+                        }
+                    yield frame
             if final_result is not None:
                 await _persist_run(
                     metrics=final_result.metrics or tracker.finalize(),

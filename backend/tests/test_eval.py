@@ -245,8 +245,24 @@ async def test_repository_filters_by_mode(tmp_path: Path) -> None:
         brief_runs = await repo.list_runs(limit=10, mode="brief")
         assert {r.mode for r in brief_runs} == {"brief"}
         assert len(brief_runs) == 2
+
+        all_summary = await repo.summary(last_n=10)
+        assert all_summary.total_runs == 4
+
+        query_summary = await repo.summary(last_n=10, mode="query")
+        assert query_summary.total_runs == 1
+        assert set(query_summary.cost_by_mode.keys()) == {"query"}
     finally:
         await repo.close()
+
+
+def test_sources_from_tool_output() -> None:
+    from app.moa.agents.base import sources_from_tool_output
+
+    text = '{"items":[{"link":"https://www.espn.com/nba/story"}]}'
+    sources = sources_from_tool_output("espn_nba_headlines", text)
+    assert "mcp:espn_nba_headlines" in sources
+    assert "https://www.espn.com/nba/story" in sources
 
 
 async def test_repository_summary_handles_empty_db(tmp_path: Path) -> None:

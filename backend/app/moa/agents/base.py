@@ -14,6 +14,7 @@ MCP-driven (no ad-hoc HTTP fallbacks).
 from __future__ import annotations
 
 import json
+import re
 import time
 from datetime import datetime
 from typing import Any
@@ -278,6 +279,37 @@ def record_streamed_llm_call(
     )
 
 
+def sources_from_tool_output(tool_name: str, text: str) -> list[str]:
+    """Derive citation strings from an MCP tool result (NBA Copilot path)."""
+    sources: list[str] = [f"mcp:{tool_name}"]
+    if not text:
+        return sources
+
+    for url in re.findall(r"https?://[^\s\"'<>\\]+", text):
+        cleaned = url.rstrip(".,);]")
+        if cleaned and cleaned not in sources:
+            sources.append(cleaned)
+
+    try:
+        payload = json.loads(text)
+    except (TypeError, ValueError):
+        return sources
+
+    def walk(node: Any) -> None:
+        if isinstance(node, dict):
+            link = node.get("link") or node.get("url")
+            if isinstance(link, str) and link.startswith("http") and link not in sources:
+                sources.append(link)
+            for value in node.values():
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(payload)
+    return sources
+
+
 def record_streamed_tool_call(
     agent: str,
     trace_event: dict[str, Any],
@@ -310,6 +342,8 @@ def record_streamed_tool_call(
         error=None if success else text[:200],
         started_at=started_at or datetime.now(),
     )
+    if success:
+        tracker.add_sources(sources_from_tool_output(tool_name, text))
 
 
 # ─── Proposal helper ─────────────────────────────────────────────────────────

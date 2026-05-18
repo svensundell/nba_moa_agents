@@ -110,8 +110,7 @@ per-agent latency chart for any selected run.
 
 ### Prerequisites
 
-- Python 3.11+
-- Node.js 20+
+- Python 3.11+ and Node.js 20+ (local dev), **or** Docker + Docker Compose v2 (containerised run)
 - An [OpenRouter API key](https://openrouter.ai/) (one key, all the models the agents use)
 - Optional: a [balldontlie API key](https://www.balldontlie.io/) for higher-quota NBA stats requests
 
@@ -138,10 +137,41 @@ Open <http://localhost:5173>.
 
 ### Run with Docker
 
+Requires [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2.
+
 ```bash
+# 1. Configure (OPENROUTER_API_KEY is required)
 cp .env.example .env
-docker compose up
+
+# 2. Build and start backend + frontend
+docker compose up --build
 ```
+
+| URL | Purpose |
+|-----|---------|
+| <http://localhost:5173> | Web UI (nginx serves the React build and proxies `/api` to the backend) |
+| <http://127.0.0.1:8001/docs> | FastAPI Swagger (direct backend access) |
+| <http://127.0.0.1:8001/api/health> | Health check |
+
+The frontend container waits until the backend healthcheck passes (MCP servers
+can take up to ~90s on first boot). Run metrics are stored in a Docker volume
+(`eval_data` → `/app/data/eval.db` inside the backend container).
+
+```bash
+# Detached mode
+docker compose up --build -d
+
+# Stop and remove containers
+docker compose down
+```
+
+**Port notes**
+
+- The UI is published on **5173** (same as local `npm run dev`).
+- The API is exposed on **8001** (not 8000) so you can keep a local
+  `uvicorn` on `:8000` while Docker is running.
+- Prefer **http://127.0.0.1:5173** if another process already owns port 8000
+  on `localhost` via IPv6 (common with an old Docker container on macOS).
 
 ### Run from the CLI (no frontend)
 

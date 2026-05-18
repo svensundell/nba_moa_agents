@@ -384,16 +384,33 @@ class EvalRepository:
             for row in rows
         ]
 
-    async def summary(self, *, last_n: int = 100) -> DashboardSummary:
-        """Aggregate dashboard stats over the last ``last_n`` runs."""
+    async def summary(
+        self,
+        *,
+        last_n: int = 100,
+        mode: str | None = None,
+    ) -> DashboardSummary:
+        """Aggregate dashboard stats over the last ``last_n`` runs.
+
+        When ``mode`` is set, only runs of that mode are included (same filter
+        as :meth:`list_runs`).
+        """
         conn = self._require_conn()
 
-        async with conn.execute(
+        sql = (
             "SELECT mode, duration_seconds, total_cost_usd, tool_call_count, "
             "tool_failure_count, moa_cost_usd, baseline_cost_usd, started_at "
-            "FROM runs ORDER BY started_at DESC LIMIT ?",
-            (last_n,),
-        ) as cursor:
+            "FROM runs"
+        )
+        params: tuple[Any, ...]
+        if mode:
+            sql += " WHERE mode = ? ORDER BY started_at DESC LIMIT ?"
+            params = (mode, last_n)
+        else:
+            sql += " ORDER BY started_at DESC LIMIT ?"
+            params = (last_n,)
+
+        async with conn.execute(sql, params) as cursor:
             rows = await cursor.fetchall()
 
         total_runs = len(rows)

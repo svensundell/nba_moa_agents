@@ -19,6 +19,7 @@ type T = {
   refresh: string;
   loading: string;
   empty: string;
+  emptyFiltered: string;
   modeAll: string;
   modeBrief: string;
   modeQuery: string;
@@ -65,6 +66,8 @@ const COPY: Record<LanguageCode, T> = {
     refresh: "Refresh",
     loading: "Loading metrics…",
     empty: "No runs yet — run a Brief or query NBA Copilot to populate the dashboard.",
+    emptyFiltered:
+      "No runs recorded for « {mode} ». Launch a pipeline in that tab, then refresh.",
     modeAll: "All modes",
     modeBrief: "Brief",
     modeQuery: "Copilot",
@@ -78,7 +81,7 @@ const COPY: Record<LanguageCode, T> = {
     toolFailureRate: "Tool failure rate",
     compareSection: "Compare mode",
     compareMoa: "Avg MoA cost",
-    compareBaseline: "Avg single-LLM cost",
+    compareBaseline: "Avg single-agent cost",
     costByModeTitle: "Total cost by mode",
     costPerRunTitle: "Cost per run (recent → past)",
     latencyByAgentTitle: "Avg LLM latency per agent (selected run)",
@@ -97,7 +100,7 @@ const COPY: Record<LanguageCode, T> = {
     selectedRun: "Selected run",
     closeDetail: "Close",
     brief: "Final brief",
-    baselineHeading: "Single-LLM baseline",
+    baselineHeading: "Single-agent baseline",
     noDataChart: "No data yet.",
     warningPartial: "Some metrics could not be loaded:",
     backendUnreachable:
@@ -111,6 +114,8 @@ const COPY: Record<LanguageCode, T> = {
     loading: "Chargement des métriques…",
     empty:
       "Aucun run enregistré — lancez un Brief ou interrogez NBA Copilot pour alimenter le tableau.",
+    emptyFiltered:
+      "Aucun run pour « {mode} ». Lancez le pipeline dans cet onglet, puis rafraîchissez.",
     modeAll: "Tous les modes",
     modeBrief: "Brief",
     modeQuery: "Copilot",
@@ -124,7 +129,7 @@ const COPY: Record<LanguageCode, T> = {
     toolFailureRate: "Taux d'échec d'outils",
     compareSection: "Mode comparaison",
     compareMoa: "Coût MoA moyen",
-    compareBaseline: "Coût LLM unique moyen",
+    compareBaseline: "Coût agent unique moyen",
     costByModeTitle: "Coût total par mode",
     costPerRunTitle: "Coût par run (récent → ancien)",
     latencyByAgentTitle: "Latence LLM moyenne par agent (run sélectionné)",
@@ -144,7 +149,7 @@ const COPY: Record<LanguageCode, T> = {
     selectedRun: "Run sélectionné",
     closeDetail: "Fermer",
     brief: "Brief final",
-    baselineHeading: "Baseline LLM unique",
+    baselineHeading: "Baseline agent unique",
     noDataChart: "Pas encore de donnée.",
     warningPartial: "Certaines métriques n'ont pas pu être chargées :",
     backendUnreachable:
@@ -200,7 +205,7 @@ export function EvalDashboard({ language }: { language: LanguageCode }) {
     setWarning(null);
     const modeFilter = mode === "all" ? undefined : mode;
     const [summarySettled, runsSettled] = await Promise.allSettled([
-      fetchMetricsSummary(100),
+      fetchMetricsSummary({ lastN: 100, mode: modeFilter }),
       fetchRuns({ limit: 50, mode: modeFilter }),
     ]);
 
@@ -263,10 +268,10 @@ export function EvalDashboard({ language }: { language: LanguageCode }) {
   const costByMode = useMemo(() => {
     if (!summary) return [];
     return Object.entries(summary.cost_by_mode ?? {}).map(([m, v]) => ({
-      label: m,
+      label: modeDisplayLabel(m, t),
       value: v,
     }));
-  }, [summary]);
+  }, [summary, t]);
 
   const latencyByAgent = useMemo(() => {
     if (!selectedRun?.metrics) return [];
@@ -321,7 +326,11 @@ export function EvalDashboard({ language }: { language: LanguageCode }) {
       )}
 
       {summary && summary.total_runs === 0 && !loading && !error && (
-        <div className="card text-base text-muted italic">{t.empty}</div>
+        <div className="card text-base text-muted italic">
+          {mode === "all"
+            ? t.empty
+            : t.emptyFiltered.replace("{mode}", modeDisplayLabel(mode, t))}
+        </div>
       )}
 
       {summary && summary.total_runs > 0 && (
@@ -345,6 +354,7 @@ export function EvalDashboard({ language }: { language: LanguageCode }) {
       )}
 
       {summary &&
+        (mode === "all" || mode === "compare") &&
         (summary.compare_avg_moa_cost_usd > 0 ||
           summary.compare_avg_baseline_cost_usd > 0) && (
           <section className="card space-y-3">
@@ -416,7 +426,7 @@ export function EvalDashboard({ language }: { language: LanguageCode }) {
                     {new Date(r.started_at).toLocaleString(language === "fr" ? "fr-FR" : "en-US")}
                   </td>
                   <td className="py-2 pr-2">
-                    <ModePill mode={r.mode} />
+                    <ModePill mode={r.mode} label={modeDisplayLabel(r.mode, t)} />
                   </td>
                   <td className="py-2 pr-2 max-w-[260px] truncate" title={r.query}>
                     {r.query || (r.mode === "brief" ? "Daily Brief" : "—")}
@@ -553,14 +563,27 @@ function SummaryStat({
   );
 }
 
-function ModePill({ mode }: { mode: "brief" | "query" | "compare" }) {
+function modeDisplayLabel(mode: string, t: T): string {
+  if (mode === "brief") return t.modeBrief;
+  if (mode === "query") return t.modeQuery;
+  if (mode === "compare") return t.modeCompare;
+  return mode;
+}
+
+function ModePill({
+  mode,
+  label,
+}: {
+  mode: "brief" | "query" | "compare";
+  label: string;
+}) {
   const c =
     mode === "brief"
       ? "border-emerald-300 bg-emerald-50 text-emerald-700"
       : mode === "query"
         ? "border-sky-300 bg-sky-50 text-sky-700"
         : "border-amber-300 bg-amber-50 text-amber-700";
-  return <span className={clsx("pill text-xs", c)}>{mode}</span>;
+  return <span className={clsx("pill text-xs", c)}>{label}</span>;
 }
 
 /**

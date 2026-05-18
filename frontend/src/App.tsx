@@ -18,6 +18,7 @@ import { Markdown } from "./components/Markdown";
 import { RunMetricsPanel } from "./components/RunMetricsPanel";
 
 type Mode = "brief" | "query" | "compare" | "eval";
+type RunMode = "brief" | "query" | "compare";
 
 const UI_TEXT: Record<
   LanguageCode,
@@ -63,13 +64,13 @@ const UI_TEXT: Record<
     modeLabels: {
       brief: "Daily Brief",
       query: "NBA Copilot",
-      compare: "MoA vs Single LLM",
+      compare: "MoA vs Single Agent",
       eval: "Evaluation",
     },
     modeDescriptions: {
       brief: "One-click NBA briefing for last night's action.",
       query: "Chat with NBA Copilot - a tool-using MCP research assistant.",
-      compare: "Daily Brief showdown: a single LLM vs the full MoA pipeline.",
+      compare: "Daily Brief showdown: a single agent vs the full MoA pipeline.",
       eval: "Cost, latency, tool reliability and source coverage per run.",
     },
     askPlaceholder: "Ask an NBA question...",
@@ -85,7 +86,7 @@ const UI_TEXT: Record<
     toolCalls: "MCP tool call(s)",
     proposers: "proposers",
     refiners: "refiners",
-    singleLlm: "Single LLM (baseline)",
+    singleLlm: "Single agent (baseline)",
     moa: "Mixture of Agents",
     finalBriefing: "Final briefing",
     finalAnswer: "Final answer",
@@ -112,13 +113,13 @@ const UI_TEXT: Record<
     modeLabels: {
       brief: "Brief quotidien",
       query: "NBA Copilot",
-      compare: "MoA vs LLM unique",
+      compare: "MoA vs Agent unique",
       eval: "Évaluation",
     },
     modeDescriptions: {
       brief: "Un clic pour resumer les matchs de la veille.",
       query: "Discutez avec NBA Copilot, un assistant MCP avec outils.",
-      compare: "Comparaison brief quotidien : LLM unique vs pipeline MoA.",
+      compare: "Comparaison brief quotidien : agent unique vs pipeline MoA.",
       eval: "Coût, latence, fiabilité des outils et couverture des sources par run.",
     },
     askPlaceholder: "Posez une question NBA...",
@@ -134,7 +135,7 @@ const UI_TEXT: Record<
     toolCalls: "appel(s) d'outils MCP",
     proposers: "proposers",
     refiners: "refiners",
-    singleLlm: "LLM unique (baseline)",
+    singleLlm: "Agent unique (baseline)",
     moa: "Mixture of Agents",
     finalBriefing: "Brief final",
     finalAnswer: "Reponse finale",
@@ -169,7 +170,9 @@ export default function App() {
   const [running, setRunning] = useState(false);
   const [statuses, setStatuses] = useState<Record<string, AgentStatus>>({});
   const [events, setEvents] = useState<AgentEvent[]>([]);
-  const [result, setResult] = useState<RunResult | null>(null);
+  const [resultsByMode, setResultsByMode] = useState<Partial<Record<RunMode, RunResult>>>(
+    {},
+  );
   const [agents, setAgents] = useState<AgentMeta[]>([]);
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
@@ -199,16 +202,34 @@ export default function App() {
     return map;
   }, [agents]);
 
-  function resetRunArtifacts() {
+  const result =
+    mode === "brief" || mode === "query" || mode === "compare"
+      ? (resultsByMode[mode] ?? null)
+      : null;
+
+  function resetRunArtifacts(clearMode?: RunMode) {
     setStatuses({});
     setEvents([]);
-    setResult(null);
+    if (clearMode) {
+      setResultsByMode((prev) => {
+        const next = { ...prev };
+        delete next[clearMode];
+        return next;
+      });
+    }
   }
 
   function resetConversation() {
-    resetRunArtifacts();
+    resetRunArtifacts("query");
     setChatMessages([]);
     setQuery("");
+  }
+
+  function handleModeChange(next: Mode) {
+    if (next !== mode && !running) {
+      setRunError(null);
+    }
+    setMode(next);
   }
 
   function start() {
@@ -257,7 +278,7 @@ export default function App() {
         } else if (frame.kind === "node_done") {
           setStatuses((s) => ({ ...s, [frame.node]: "done" }));
         } else if (frame.kind === "result") {
-          setResult(frame.result);
+          setResultsByMode((prev) => ({ ...prev, [activeMode]: frame.result }));
           if (activeMode === "query") {
             setChatMessages((prev) => [
               ...prev,
@@ -313,7 +334,7 @@ export default function App() {
       <main className="relative z-10 max-w-7xl mx-auto px-6 py-6 space-y-6">
         <ModeTabs
           mode={mode}
-          onChange={setMode}
+          onChange={handleModeChange}
           disabled={running}
           labels={ui.modeLabels}
           descriptions={ui.modeDescriptions}
@@ -346,7 +367,12 @@ export default function App() {
             {(result || chatMessages.length > 0) && (
               <button
                 className="btn-secondary"
-                onClick={resetConversation}
+                onClick={() => {
+                  if (mode === "query") resetConversation();
+                  else if (mode === "brief" || mode === "compare") {
+                    resetRunArtifacts(mode);
+                  }
+                }}
                 disabled={running}
                 title={ui.reset}
               >

@@ -203,8 +203,14 @@ export async function fetchRunDetail(runId: string): Promise<RunResult> {
   return r.json();
 }
 
-export async function fetchMetricsSummary(lastN = 100): Promise<DashboardSummary> {
-  const path = `${base}/metrics/summary?last_n=${lastN}`;
+export async function fetchMetricsSummary(opts?: {
+  lastN?: number;
+  mode?: "brief" | "query" | "compare";
+}): Promise<DashboardSummary> {
+  const params = new URLSearchParams();
+  params.set("last_n", String(opts?.lastN ?? 100));
+  if (opts?.mode) params.set("mode", opts.mode);
+  const path = `${base}/metrics/summary?${params}`;
   const r = await fetch(path);
   if (!r.ok) throw apiError("/api/metrics/summary", r.status);
   return r.json();

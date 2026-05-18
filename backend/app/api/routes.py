@@ -120,13 +120,14 @@ async def get_run(run_id: str) -> RunResult:
 @router.get("/metrics/summary", response_model=DashboardSummary)
 async def metrics_summary(
     last_n: int = Query(default=100, ge=1, le=1000),
+    mode: str | None = Query(default=None, pattern="^(brief|query|compare)$"),
 ) -> DashboardSummary:
     """Aggregates rendered on the evaluation dashboard landing card."""
     try:
         repo = get_repository()
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return await repo.summary(last_n=last_n)
+    return await repo.summary(last_n=last_n, mode=mode)
 
 
 @router.websocket("/ws/run")

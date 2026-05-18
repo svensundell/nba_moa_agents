@@ -23,6 +23,7 @@ type T = {
   toolFailuresCol: string;
   toolLatency: string;
   wallClock: string;
+  wallClockHelp: string;
   sources: string;
   estimatedNote: string;
   moaVsBaseline: string;
@@ -53,12 +54,14 @@ const COPY: Record<LanguageCode, T> = {
     toolFailuresCol: "Fail",
     toolLatency: "Tool ms",
     wallClock: "Wall ms",
+    wallClockHelp:
+      "End-to-end time for that agent's step (LangGraph node or full Copilot run), including LLM and tool calls.",
     sources: "Sources",
     estimatedNote:
       "Some model prices are estimates — actual cost may differ slightly.",
-    moaVsBaseline: "MoA vs single-LLM cost",
+    moaVsBaseline: "MoA vs single-agent cost",
     moaPipeline: "MoA pipeline",
-    baselineLlm: "Single LLM",
+    baselineLlm: "Single agent",
     noSources: "No sources reported by the agents.",
   },
   fr: {
@@ -82,12 +85,14 @@ const COPY: Record<LanguageCode, T> = {
     toolFailuresCol: "Fails",
     toolLatency: "Outils ms",
     wallClock: "Wall ms",
+    wallClockHelp:
+      "Temps réel de l'étape de l'agent (nœud LangGraph ou run Copilot complet), LLM et outils inclus.",
     sources: "Sources",
     estimatedNote:
       "Certains prix de modèles sont estimés — le coût réel peut légèrement différer.",
-    moaVsBaseline: "Coût MoA vs LLM unique",
+    moaVsBaseline: "Coût MoA vs agent unique",
     moaPipeline: "Pipeline MoA",
-    baselineLlm: "LLM unique",
+    baselineLlm: "Agent unique",
     noSources: "Aucune source remontée par les agents.",
   },
 };
@@ -212,7 +217,9 @@ export function RunMetricsPanel({
                   <th className="py-1 pr-2 text-right">{t.toolCallsCol}</th>
                   <th className="py-1 pr-2 text-right">{t.toolFailuresCol}</th>
                   <th className="py-1 pr-2 text-right">{t.toolLatency}</th>
-                  <th className="py-1 pr-2 text-right">{t.wallClock}</th>
+                  <th className="py-1 pr-2 text-right" title={t.wallClockHelp}>
+                    {t.wallClock}
+                  </th>
                 </tr>
               </thead>
               <tbody>
