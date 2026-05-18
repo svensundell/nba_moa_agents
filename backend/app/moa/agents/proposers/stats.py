@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import time
 from datetime import date, datetime, timedelta
 from typing import Any
 
@@ -9,7 +10,12 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage
 
 from app.mcp.client import mcp_registry
-from app.moa.agents.base import event, make_proposal
+from app.moa.agents.base import (
+    event,
+    make_proposal,
+    record_streamed_llm_call,
+    record_streamed_tool_call,
+)
 from app.moa.llm import AGENT_MODELS, get_model, model_id
 from app.moa.state import MoAState
 
@@ -120,6 +126,8 @@ async def stats_agent(state: MoAState) -> dict:
     tool_events = []
     final_messages: list[Any] = []
     seen_tool_events: set[tuple[str, str]] = set()
+    tool_start_times: dict[str, float] = {}
+    llm_start_times: dict[str, float] = {}
 
     try:
         async for trace_event in agent.astream_events(
@@ -127,10 +135,20 @@ async def stats_agent(state: MoAState) -> dict:
             version="v2",
         ):
             evt_type = trace_event.get("event")
-            if evt_type == "on_tool_end":
+            run_id = str(trace_event.get("run_id", ""))
+            if evt_type == "on_tool_start":
+                tool_start_times[run_id] = time.monotonic()
+            elif evt_type == "on_tool_end":
                 tool_name = str(trace_event.get("name", "tool"))
                 output = trace_event.get("data", {}).get("output")
                 preview = _extract_text(output)[:220].replace("\n", " ")
+                latency_ms = (
+                    (time.monotonic() - tool_start_times.pop(run_id, time.monotonic()))
+                    * 1000.0
+                )
+                record_streamed_tool_call(
+                    "stats", trace_event, latency_ms=latency_ms
+                )
                 dedupe_key = (tool_name, preview)
                 if dedupe_key in seen_tool_events:
                     continue
@@ -143,6 +161,19 @@ async def stats_agent(state: MoAState) -> dict:
                         content=f"{tool_name}: {preview}",
                         model=model_label,
                     )
+                )
+            elif evt_type == "on_chat_model_start":
+                llm_start_times[run_id] = time.monotonic()
+            elif evt_type == "on_chat_model_end":
+                latency_ms = (
+                    (time.monotonic() - llm_start_times.pop(run_id, time.monotonic()))
+                    * 1000.0
+                )
+                record_streamed_llm_call(
+                    "stats",
+                    model_label,
+                    trace_event,
+                    fallback_latency_ms=latency_ms,
                 )
             elif evt_type == "on_chain_end":
                 output = trace_event.get("data", {}).get("output")

@@ -7,6 +7,7 @@ decide which tools to call (and in what order) based on the conversation.
 
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncIterator
 from datetime import datetime
 from typing import Any
@@ -16,6 +17,10 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 from app.api.schemas import RunResult
 from app.mcp.client import mcp_registry
+from app.moa.agents.base import (
+    record_streamed_llm_call,
+    record_streamed_tool_call,
+)
 from app.moa.llm import AGENT_MODELS, get_model, model_id
 from app.moa.state import AgentEvent
 
@@ -191,13 +196,84 @@ def _build_nba_copilot_agent(language: str) -> tuple[Any, str, str, list[Any]]:
     return agent, model_name, model_label, tools
 
 
+async def _stream_copilot(
+    *,
+    agent: Any,
+    model_label: str,
+    input_messages: list[dict[str, str]],
+    events: list[AgentEvent],
+) -> AsyncIterator[tuple[str, dict[str, Any] | list[Any]]]:
+    """Drive the LangChain agent loop, emitting ``(kind, payload)`` pairs.
+
+    Splitting this out of the public streamer keeps the metric
+    instrumentation in one place and makes the public function readable.
+    """
+    final_messages: list[Any] = []
+    seen_tool_events: set[tuple[str, str]] = set()
+    tool_start_times: dict[str, float] = {}
+    llm_start_times: dict[str, float] = {}
+
+    async for trace_event in agent.astream_events(
+        {"messages": input_messages},
+        version="v2",
+    ):
+        evt_type = trace_event.get("event")
+        run_id = str(trace_event.get("run_id", ""))
+        if evt_type == "on_tool_start":
+            tool_start_times[run_id] = time.monotonic()
+        elif evt_type == "on_tool_end":
+            tool_name = str(trace_event.get("name", "tool"))
+            output = trace_event.get("data", {}).get("output")
+            preview = _extract_text(output)[:220].replace("\n", " ")
+            latency_ms = (
+                (time.monotonic() - tool_start_times.pop(run_id, time.monotonic()))
+                * 1000.0
+            )
+            record_streamed_tool_call(
+                "nba_copilot", trace_event, latency_ms=latency_ms
+            )
+            dedupe_key = (tool_name, preview)
+            if dedupe_key in seen_tool_events:
+                continue
+            seen_tool_events.add(dedupe_key)
+            ev = _event("tool", f"{tool_name}: {preview}", model=model_label)
+            events.append(ev)
+            yield "event", ev.model_dump(mode="json")
+        elif evt_type == "on_chat_model_start":
+            llm_start_times[run_id] = time.monotonic()
+        elif evt_type == "on_chat_model_end":
+            latency_ms = (
+                (time.monotonic() - llm_start_times.pop(run_id, time.monotonic()))
+                * 1000.0
+            )
+            record_streamed_llm_call(
+                "nba_copilot",
+                model_label,
+                trace_event,
+                fallback_latency_ms=latency_ms,
+            )
+        elif evt_type == "on_chain_end":
+            output = trace_event.get("data", {}).get("output")
+            if isinstance(output, dict):
+                output_messages = output.get("messages")
+                if isinstance(output_messages, list):
+                    final_messages = output_messages
+
+    yield "final", final_messages
+
+
 async def stream_open_query_frames(
     query: str,
     messages: list[dict[str, str]] | None = None,
     date: str | None = None,
     language: str = "en",
 ) -> AsyncIterator[dict[str, Any]]:
-    """Stream NBA Copilot frames live for websocket clients."""
+    """Stream NBA Copilot frames live for websocket clients.
+
+    Metrics tracking is the caller's responsibility — see ``run_streaming``
+    in ``app.api.runner``, which binds a :class:`~app.eval.RunTracker`
+    before invoking this coroutine.
+    """
     started_at = datetime.now()
     date_value = date or datetime.now().date().isoformat()
     agent, _model_name, model_label, tools = _build_nba_copilot_agent(language)
@@ -214,31 +290,17 @@ async def stream_open_query_frames(
     yield {"kind": "event", "event": events[0].model_dump(mode="json")}
 
     final_messages: list[Any] = []
-    seen_tool_events: set[tuple[str, str]] = set()
-
     try:
-        async for trace_event in agent.astream_events(
-            {"messages": input_messages},
-            version="v2",
+        async for kind, payload in _stream_copilot(
+            agent=agent,
+            model_label=model_label,
+            input_messages=input_messages,
+            events=events,
         ):
-            evt_type = trace_event.get("event")
-            if evt_type == "on_tool_end":
-                tool_name = str(trace_event.get("name", "tool"))
-                output = trace_event.get("data", {}).get("output")
-                preview = _extract_text(output)[:220].replace("\n", " ")
-                dedupe_key = (tool_name, preview)
-                if dedupe_key in seen_tool_events:
-                    continue
-                seen_tool_events.add(dedupe_key)
-                ev = _event("tool", f"{tool_name}: {preview}", model=model_label)
-                events.append(ev)
-                yield {"kind": "event", "event": ev.model_dump(mode="json")}
-            elif evt_type == "on_chain_end":
-                output = trace_event.get("data", {}).get("output")
-                if isinstance(output, dict):
-                    messages = output.get("messages")
-                    if isinstance(messages, list):
-                        final_messages = messages
+            if kind == "event":
+                yield {"kind": "event", "event": payload}
+            elif kind == "final" and isinstance(payload, list):
+                final_messages = payload
 
         answer = _final_answer_from_any_messages(final_messages)
         if _tool_uses_bdl_season_averages_401_any(final_messages):

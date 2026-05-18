@@ -7,6 +7,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.eval.schemas import RunMetrics
 from app.moa.state import AgentEvent
 
 LanguageCode = Literal["en", "fr"]
@@ -73,6 +74,7 @@ class RunResult(BaseModel):
     started_at: datetime
     finished_at: datetime
     duration_seconds: float
+    metrics: RunMetrics | None = None
 
 
 class HealthResponse(BaseModel):

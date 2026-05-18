@@ -23,8 +23,12 @@ what gives the pipeline its real performance edge.
 
 from __future__ import annotations
 
+from collections.abc import Awaitable, Callable
+from typing import Any
+
 from langgraph.graph import END, START, StateGraph
 
+from app.eval import current_tracker
 from app.moa.agents.base import event
 from app.moa.agents.editor import baseline_agent, editor_agent
 from app.moa.agents.proposers import (
@@ -36,6 +40,26 @@ from app.moa.agents.proposers import (
 )
 from app.moa.agents.refiners import analyst_agent, narrative_agent
 from app.moa.state import MoAState
+
+NodeFn = Callable[[MoAState], Awaitable[dict[str, Any]]]
+
+
+def _track(name: str, fn: NodeFn) -> NodeFn:
+    """Wrap a LangGraph node with per-agent wall-clock timing.
+
+    The wrapper is a no-op when no tracker is bound to the current task,
+    so the function stays safe to call from CLI / unit-test contexts.
+    """
+
+    async def wrapped(state: MoAState) -> dict[str, Any]:
+        tracker = current_tracker()
+        if tracker is None:
+            return await fn(state)
+        async with tracker.time_agent(name):
+            return await fn(state)
+
+    wrapped.__name__ = f"tracked_{name}"
+    return wrapped
 
 
 async def kickoff(state: MoAState) -> dict:
@@ -67,22 +91,22 @@ def build_graph():
     """
     g: StateGraph = StateGraph(MoAState)
 
-    g.add_node("kickoff", kickoff)
+    g.add_node("kickoff", _track("kickoff", kickoff))
 
     # Layer 1
-    g.add_node("scores", scores_agent)
-    g.add_node("news", news_agent)
-    g.add_node("stats", stats_agent)
-    g.add_node("injuries", injuries_agent)
-    g.add_node("social", social_agent)
+    g.add_node("scores", _track("scores", scores_agent))
+    g.add_node("news", _track("news", news_agent))
+    g.add_node("stats", _track("stats", stats_agent))
+    g.add_node("injuries", _track("injuries", injuries_agent))
+    g.add_node("social", _track("social", social_agent))
 
     # Layer 2
-    g.add_node("analyst", analyst_agent)
-    g.add_node("narrative", narrative_agent)
+    g.add_node("analyst", _track("analyst", analyst_agent))
+    g.add_node("narrative", _track("narrative", narrative_agent))
 
     # Layer 3
-    g.add_node("editor", editor_agent)
-    g.add_node("baseline", baseline_agent)
+    g.add_node("editor", _track("editor", editor_agent))
+    g.add_node("baseline", _track("baseline", baseline_agent))
 
     # Edges
     g.add_edge(START, "kickoff")

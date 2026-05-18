@@ -14,11 +14,14 @@ MCP-driven (no ad-hoc HTTP fallbacks).
 from __future__ import annotations
 
 import json
+import time
+from datetime import datetime
 from typing import Any
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from loguru import logger
 
+from app.eval import current_tracker
 from app.mcp.client import (
     MCPNotInitialised,
     MCPToolMissing,
@@ -50,6 +53,40 @@ def event(
 # ─── LLM ─────────────────────────────────────────────────────────────────────
 
 
+def _usage_from_response(response: Any) -> tuple[int, int]:
+    """Best-effort extraction of (input_tokens, output_tokens) from an LLM response.
+
+    LangChain's ``ChatOpenAI`` populates ``usage_metadata`` on the
+    returned ``AIMessage`` for OpenAI-compatible providers. OpenRouter is
+    OpenAI-compatible, so we read it from there first. ``response_metadata``
+    is checked as a fallback for older versions.
+    """
+    if isinstance(response, AIMessage):
+        usage = getattr(response, "usage_metadata", None)
+        if isinstance(usage, dict):
+            return (
+                int(usage.get("input_tokens", 0) or 0),
+                int(usage.get("output_tokens", 0) or 0),
+            )
+    meta = getattr(response, "response_metadata", None)
+    if isinstance(meta, dict):
+        token_usage = meta.get("token_usage") or meta.get("usage") or {}
+        if isinstance(token_usage, dict):
+            return (
+                int(
+                    token_usage.get("prompt_tokens")
+                    or token_usage.get("input_tokens")
+                    or 0
+                ),
+                int(
+                    token_usage.get("completion_tokens")
+                    or token_usage.get("output_tokens")
+                    or 0
+                ),
+            )
+    return 0, 0
+
+
 async def call_llm(
     agent: str,
     *,
@@ -57,15 +94,30 @@ async def call_llm(
     user: str,
     temperature: float | None = None,
 ) -> str:
-    """Run a one-shot LLM call for an agent and return the text content."""
+    """Run a one-shot LLM call for an agent and return the text content.
+
+    LLM latency, token usage and (priced) cost are recorded on the
+    :class:`~app.eval.RunTracker` bound to the current task, when one is
+    present. Agent code stays oblivious to instrumentation.
+    """
     model_name = AGENT_MODELS.get(agent, "balanced")
     resolved_model = model_id(model_name)
     llm = get_model(model_name, temperature=temperature)
     msgs: list[Any] = [SystemMessage(content=system), HumanMessage(content=user)]
+
+    tracker = current_tracker()
+    start = time.monotonic()
     try:
         response = await llm.ainvoke(msgs)
-        return str(response.content).strip()
     except Exception as exc:  # pragma: no cover - network errors
+        if tracker is not None:
+            tracker.record_llm_call(
+                agent=agent,
+                model_id=resolved_model,
+                input_tokens=0,
+                output_tokens=0,
+                latency_ms=(time.monotonic() - start) * 1000.0,
+            )
         logger.bind(agent=agent).error(
             f"LLM call failed (logical={model_name}, resolved={resolved_model}): {exc}"
         )
@@ -73,6 +125,17 @@ async def call_llm(
             f"[error: {agent} LLM call failed "
             f"(logical={model_name}, resolved={resolved_model}): {exc}]"
         )
+
+    if tracker is not None:
+        in_tok, out_tok = _usage_from_response(response)
+        tracker.record_llm_call(
+            agent=agent,
+            model_id=resolved_model,
+            input_tokens=in_tok,
+            output_tokens=out_tok,
+            latency_ms=(time.monotonic() - start) * 1000.0,
+        )
+    return str(response.content).strip()
 
 
 # ─── MCP tool invocation (with structured event emission) ────────────────────
@@ -89,14 +152,30 @@ async def mcp_invoke(
 ) -> tuple[str, AgentEvent]:
     """Call an MCP tool from inside an agent and return (raw_result, event).
 
-    The caller is expected to add the returned event to its events list and
-    decide what to do with the raw result string. A failure is converted to
-    an ``MCPToolError`` after producing a structured "error" event so the
-    pipeline can record it in the trace.
+    Latency and success/failure of every call are recorded on the active
+    :class:`~app.eval.RunTracker` when one is bound — including the
+    failure path so the dashboard can compute tool failure rates.
     """
+    tracker = current_tracker()
+    started_at = datetime.now()
+    start = time.monotonic()
+
+    def _record(success: bool, error: str | None = None) -> None:
+        if tracker is None:
+            return
+        tracker.record_tool_call(
+            agent=agent,
+            tool=tool_name,
+            latency_ms=(time.monotonic() - start) * 1000.0,
+            success=success,
+            error=error,
+            started_at=started_at,
+        )
+
     try:
         tool = mcp_registry.get_tool(tool_name)
     except (MCPNotInitialised, MCPToolMissing) as exc:
+        _record(False, str(exc))
         ev = event(agent, _layer_for(agent), "error", content=f"{tool_name}: {exc}")
         raise MCPToolError(str(exc)) from exc
 
@@ -108,9 +187,11 @@ async def mcp_invoke(
         else:
             text = _extract_text(await tool.ainvoke(arguments))
     except Exception as exc:  # pragma: no cover - depends on MCP subprocess
+        _record(False, str(exc))
         logger.bind(agent=agent).error(f"MCP {tool_name} failed: {exc}")
         ev = event(agent, _layer_for(agent), "error", content=f"{tool_name} failed: {exc}")
         raise MCPToolError(str(exc)) from exc
+    _record(True)
     preview = text[:160].replace("\n", " ")
     ev = event(
         agent,
@@ -148,6 +229,87 @@ def parse_mcp_json(raw: str) -> Any:
         return json.loads(raw)
     except (TypeError, ValueError):
         return raw
+
+
+# ─── Stream event accounting helpers ─────────────────────────────────────────
+
+
+def record_streamed_llm_call(
+    agent: str,
+    model_id_label: str,
+    trace_event: dict[str, Any],
+    *,
+    fallback_latency_ms: float = 0.0,
+) -> None:
+    """Record an LLM call observed inside ``astream_events``.
+
+    The two tool-using agents (``stats`` and ``nba_copilot``) drive
+    LangChain's ``create_agent`` and read tool outputs from the v2 stream.
+    Hooking ``on_chat_model_end`` here lets us account for every model
+    turn the planner takes without intercepting the runnable.
+
+    ``trace_event`` is one ``astream_events(version="v2")`` payload of
+    type ``on_chat_model_end``. We pull token usage from the emitted
+    ``AIMessage`` in ``data.output``.
+    """
+    tracker = current_tracker()
+    if tracker is None:
+        return
+    output = trace_event.get("data", {}).get("output")
+    in_tok = 0
+    out_tok = 0
+    if isinstance(output, AIMessage):
+        in_tok, out_tok = _usage_from_response(output)
+    elif isinstance(output, dict):
+        usage = (
+            output.get("usage_metadata")
+            or output.get("usage")
+            or {}
+        )
+        if isinstance(usage, dict):
+            in_tok = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
+            out_tok = int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
+    tracker.record_llm_call(
+        agent=agent,
+        model_id=model_id_label,
+        input_tokens=in_tok,
+        output_tokens=out_tok,
+        latency_ms=max(0.0, fallback_latency_ms),
+    )
+
+
+def record_streamed_tool_call(
+    agent: str,
+    trace_event: dict[str, Any],
+    *,
+    started_at: datetime | None = None,
+    latency_ms: float = 0.0,
+) -> None:
+    """Record an MCP tool call observed inside ``astream_events``.
+
+    Mirrors :func:`record_streamed_llm_call` for ``on_tool_end`` events
+    so token-using agents still feed the tracker with tool metrics even
+    though they bypass :func:`mcp_invoke`.
+    """
+    tracker = current_tracker()
+    if tracker is None:
+        return
+    tool_name = str(trace_event.get("name", "tool"))
+    output = trace_event.get("data", {}).get("output")
+    text = ""
+    if isinstance(output, str):
+        text = output
+    elif hasattr(output, "content"):
+        text = str(getattr(output, "content", "") or "")
+    success = not text.startswith("[error]")
+    tracker.record_tool_call(
+        agent=agent,
+        tool=tool_name,
+        latency_ms=latency_ms,
+        success=success,
+        error=None if success else text[:200],
+        started_at=started_at or datetime.now(),
+    )
 
 
 # ─── Proposal helper ─────────────────────────────────────────────────────────
