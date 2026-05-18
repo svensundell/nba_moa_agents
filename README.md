@@ -10,15 +10,29 @@
 
 ## Why this project?
 
-Most "Mixture of Agents" demos online are abstract chat playgrounds. This one solves a concrete personal problem:
+Most "Mixture of Agents" demos are abstract chat playgrounds. This one solves a concrete problem:
 
-> *I want a structured NBA briefing for last night, generated automatically every morning, and **NBA Copilot** to dig deeper interactively.*
+> *A structured NBA briefing for last night, plus **NBA Copilot** to dig deeper with live data.*
 
-Three things make this implementation noteworthy:
+The implementation treats that workflow as a real system: runs are measured, sources are cited, and the stack is meant to be run and extended by someone else (`docker compose up`, tests, typed API).
 
-1. **Real model diversity over OpenRouter** — 9 specialised agents on 3 layers, routed through **5 different model families** (DeepSeek, Google Gemini, Qwen, Mistral). Different roles, different brains — not the same LLM with eight prompts.
-2. **Three custom MCP servers, 11 tools total** — `nba-stats-mcp` (balldontlie.io), `reddit-mcp` (r/nba JSON) and `espn-mcp` (ESPN RSS + ESPN site API for boxscores). They speak the Model Context Protocol so any MCP client (Claude Desktop, Cursor, our LangGraph agents) can plug into them. **The pipeline is strictly MCP-driven — no HTTP fallbacks.**
-3. **Hybrid orchestration** — the `brief` mode runs a *deterministic* LangGraph MoA pipeline (perfect for a daily recap). **NBA Copilot** (`query` mode) runs a *dynamic* LangChain `create_agent` with the full MCP toolset, supports multi-turn chat history, and streams each tool decision over WebSocket so the frontend renders a live MCP tool timeline.
+**What ships today:**
+
+1. **Observable runs** — every invocation is tracked (`RunTracker` → SQLite `data/eval.db`): cost per run and per agent, token usage, LLM/MCP latency, tool failure rate, source coverage, wall-clock per graph node. The **Evaluation** tab charts history, filters by mode, and compares MoA vs single-LLM cost on `compare` runs.
+2. **Source traceability** — each MCP call becomes a numbered `SourceCitation` (provider, tool, retrieval time, URL when available, payload excerpt). The **Daily Brief** editor receives a source index and can cite `[1]`, `[2]` inline; the UI links citations to the live tool timeline and a **Sources** bibliography. *(Semantic "click any phrase → tool output" and Copilot post-pass citations are on the [roadmap](#roadmap).)*
+3. **MoA + MCP** — 9 specialised agents on 3 layers across **5 model families** via OpenRouter; **three custom MCP servers, 11 tools**, strictly MCP-driven (no HTTP fallbacks). The servers are reusable in any MCP client (Claude Desktop, Cursor, etc.).
+4. **Hybrid orchestration** — `brief` / `compare` use a *deterministic* LangGraph MoA pipeline (repeatable daily recap, side-by-side baseline). **NBA Copilot** (`query`) uses a *dynamic* tool-using `create_agent` with multi-turn chat and WebSocket streaming of every tool decision.
+
+**Design choices:**
+
+| Choice | Why |
+|--------|-----|
+| MoA for the Daily Brief | Parallel specialists + refinement produce structured, sectioned output more reliably than a single prompt. |
+| Tool-using agent for Copilot | Open-ended questions need dynamic tool planning, not a fixed graph. |
+| MCP-only data layer | Explicit tool boundaries, auditable calls, portable servers. |
+| Metrics + citations in-app | Cost, failure modes, and provenance are part of the product, not an afterthought. |
+
+Planned next: scheduled briefs, brief history / RAG for Copilot, public demo deploy. See [Roadmap](#roadmap).
 
 ## Architecture
 
@@ -99,12 +113,37 @@ Three endpoints expose the history:
 
 - `GET /api/runs?limit=…&mode=…` — recent runs (summary).
 - `GET /api/runs/{id}` — full payload including the per-agent breakdown.
-- `GET /api/metrics/summary?last_n=…` — aggregates (avg cost, p95 latency,
-  tool failure rate, MoA vs baseline cost) used by the dashboard.
+- `GET /api/metrics/summary?last_n=…&mode=…` — aggregates (avg cost, p95 latency,
+  tool failure rate, MoA vs baseline cost) used by the dashboard; optional `mode`
+  filter matches `GET /api/runs`.
 
 The "Evaluation" tab in the frontend renders all of this, with a run
 history table, cost-per-run / cost-per-mode bar charts and an inline
 per-agent latency chart for any selected run.
+
+### Source traceability
+
+Every run also returns a structured bibliography in `RunResult.source_citations`
+(`SourceCitation`: numbered id, provider, MCP tool name, agent, retrieval
+timestamp, optional URL, excerpt of the raw tool payload).
+
+| Layer | What happens |
+|-------|----------------|
+| **MCP calls** | `mcp_invoke` (brief proposers) and `record_streamed_tool_call` (NBA Copilot) call `RunTracker.record_mcp_citation()` — see `app/moa/citations.py`. |
+| **Live UI** | Tool events carry `citation_id`, `provider`, `retrieved_at`, `source_url` for the MCP timeline. |
+| **After the run** | `runner._attach_citations()` merges tracker citations + proposal URLs into `source_citations`. |
+
+**Daily Brief** — before the editor writes, `editor_agent` builds a numbered
+index (`format_citation_index`) from all MCP calls so far and passes it in the
+user prompt. The editor is instructed to add inline markdown citations `[1]`,
+`[2]`, … matching that index. The frontend turns `[n]` into clickable links
+that scroll to the matching source card and highlight the tool step.
+
+**NBA Copilot** — the tool-using agent does **not** receive that index in its
+chat messages today. It sees raw tool JSON inside its ReAct loop; citations are
+recorded in the tracker as tools finish, and the UI shows the full **Sources**
+section after the answer. Inline `[n]` in Copilot answers are best-effort only
+until a post-pass injects the index (roadmap).
 
 ## Quick start
 
@@ -195,8 +234,10 @@ nba_moa_agents/
 │   │   │   ├── state.py         Shared state schema + AgentEvent
 │   │   │   ├── llm.py           OpenRouter model registry + agent → model mapping
 │   │   │   ├── open_query.py    Tool-using LangChain agent for NBA Copilot
+│   │   │   ├── citations.py     SourceCitation helpers (MCP → numbered bibliography)
 │   │   │   └── agents/          Per-agent logic + prompts (proposers / refiners / editor)
 │   │   ├── mcp/                 MCPRegistry: launches & caches the 3 MCP servers
+│   │   ├── eval/                RunTracker, SQLite repo, pricing (metrics + citations)
 │   │   └── core/                Config & logging
 │   ├── scripts/demo.py          CLI demo runner
 │   └── tests/                   Smoke tests (no LLM calls)
@@ -206,6 +247,7 @@ nba_moa_agents/
 │   └── espn/                    Custom MCP server (ESPN RSS + site API wrapper)
 ├── frontend/                    React 18 + Vite + TypeScript + Tailwind + ReactFlow
 │   ├── src/App.tsx              Mode tabs · agent graph · MCP tool timeline · live trace
+│   ├── src/components/          SourcesBibliography, CitedMarkdown, EvalDashboard, …
 │   └── src/api.ts               REST + WebSocket client
 ├── docker-compose.yml
 └── docs/architecture.md
@@ -232,7 +274,10 @@ The three MCP servers in `mcp_servers/` are reusable on their own — drop them 
 - [x] MoA vs Single LLM comparison
 - [x] CLI demo runner
 - [x] Evaluation dashboard: cost / latency / tool-failure / source-coverage per run, persisted to SQLite
-- [ ] Source citations + trace-back to the tool output that produced each line
+- [x] Structured source citations (MCP → `source_citations`, Sources panel, timeline metadata)
+- [x] Daily Brief: editor receives numbered source index + inline `[n]` citations
+- [ ] NBA Copilot: post-pass to inject source index so `[n]` in answers match the bibliography
+- [ ] Click arbitrary phrase → tool output (semantic trace-back, not only `[n]`)
 - [ ] Scheduled daily briefing (cron + email/Slack)
 - [ ] Brief history & favourites
 - [ ] Deployment guide (Fly.io / Render)

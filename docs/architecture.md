@@ -105,6 +105,8 @@ The graph state lives in `app/moa/state.py`:
 - `refinements` (list, accumulated): one `AgentRefinement` per layer-2 node.
 - `final_brief` / `single_llm_answer` (string, last write wins).
 - `events` (list, accumulated): everything that goes to the WebSocket trace.
+  Tool events may carry optional citation metadata (`citation_id`,
+  `provider`, `tool`, `retrieved_at`, `source_url`) for the live MCP timeline.
 
 Channels using `operator.add` allow parallel writes from sibling nodes
 without conflict.
@@ -156,7 +158,10 @@ running this whole project — see the README of each server.
    - invokes the underlying coroutine to get the raw `(content, artifact)`
      tuple from `langchain-mcp-adapters`,
    - extracts text content and emits a structured `"tool"` event for the
-     UI trace.
+     UI trace (with `citation_id`, `provider`, `retrieved_at`, `source_url`
+     when a `RunTracker` is active — see "Source traceability").
+   - calls `RunTracker.record_mcp_citation()` so each successful tool
+     invocation becomes a numbered `SourceCitation` in the run bibliography.
 3. Tool-using agents (`stats`, `nba_copilot`) bypass `mcp_invoke` and pass
    the LangChain tool objects straight to `create_agent(tools=...)`. Tool
    call events are reconstructed from `astream_events("v2")` and re-emitted
@@ -221,6 +226,119 @@ Both share the same `RunResult` schema and the same WebSocket frame
 protocol, so the frontend can render either mode without special-casing the
 transport.
 
+## Source traceability
+
+Every pipeline run is observed by a request-scoped `RunTracker`
+(`app/eval/tracker.py`, bound via `ContextVar` in `app/api/runner.py`). In
+addition to token/cost/latency metrics, the tracker maintains a numbered
+list of `SourceCitation` records (`app/eval/schemas.py`, helpers in
+`app/moa/citations.py`).
+
+Each citation captures:
+
+| Field | Meaning |
+|-------|---------|
+| `id` | Monotonic integer per run (`1`, `2`, `3`, …) — used for inline `[n]` refs and UI linking |
+| `provider` | Human label derived from the tool name (`ESPN`, `Reddit`, `balldontlie`) |
+| `tool` | MCP tool name (e.g. `espn_nba_headlines`) |
+| `agent` | Logical agent that invoked the tool (`news`, `nba_copilot`, …) |
+| `retrieved_at` | Wall-clock time when the MCP call completed |
+| `url` | First HTTP link extracted from the tool JSON, if any |
+| `title` | Short human-readable label (often derived from tool + args) |
+| `excerpt` | Truncated preview of the raw MCP payload (~280 chars) |
+
+### Recording path
+
+```
+MCP tool returns raw JSON/text
+        │
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│  mcp_invoke (proposers)          record_streamed_tool_call │
+│  scores, news, injuries, social  (nba_copilot streaming)   │
+└───────────────────────────┬───────────────────────────────┘
+                            ▼
+              RunTracker.record_mcp_citation()
+              (+ record_tool_call for eval metrics)
+                            ▼
+              AgentEvent type="tool" with citation_id, provider, …
+                            ▼
+              (brief/compare) proposals may also carry legacy
+              source strings → merged at the end
+```
+
+- **Direct-tool proposers** go through `mcp_invoke` in `app/moa/agents/base.py`.
+  On success, `record_mcp_citation()` parses URLs from the payload
+  (`urls_from_payload`) and assigns the next `id`.
+- **NBA Copilot** records citations inside `record_streamed_tool_call` on each
+  `on_tool_end` from `astream_events`. The streamed `AgentEvent` picks up
+  metadata via `_latest_citation_fields()` in `app/moa/open_query.py`.
+- **Legacy proposal URLs** — proposers like `news` still attach ESPN links in
+  `AgentProposal.sources`. `merge_run_citations()` deduplicates these against
+  MCP citations so the bibliography is complete even when a URL only appeared
+  in the proposal layer.
+
+### Attaching the bibliography to the API response
+
+After the pipeline finishes, `runner._attach_citations()` builds the final
+list:
+
+```python
+result.source_citations = merge_run_citations(tracker, proposals)
+```
+
+This runs for `brief`, `compare`, and `query`. The frontend renders it in the
+**Sources** panel (`SourcesBibliography`) and uses the same ids in the MCP
+tool timeline.
+
+### Daily Brief — inline `[n]` citations (editor pass)
+
+The MoA graph does **not** write the user-facing brief. Layer-1/2 agents
+produce drafts; `editor_agent` (`app/moa/agents/editor.py`) is a separate
+LLM call that runs **after** all MCP tools have completed.
+
+At editor time:
+
+1. `merge_run_citations(tracker, state["proposals"])` collects every MCP
+   citation plus any proposal-only URLs.
+2. `format_citation_index(citations)` renders a numbered block, e.g.
+   `[1] ESPN — espn_nba_headlines — news — 2026-05-18 12:00 UTC | https://…`
+3. That block is appended to the **user** prompt, and `BRIEF_SYSTEM` instructs
+   the editor to add inline `[n]` when stating facts grounded in the drafts.
+4. The frontend (`CitedMarkdown`) turns `[n]` into clickable links that scroll
+   to `#source-n` and highlight the matching tool step (`citation_id === n`).
+
+So for the brief, association between prose and sources is **delegated to the
+editor LLM** with an explicit numbered index — not computed by semantic
+matching in Python.
+
+### NBA Copilot — bibliography without pre-injected index
+
+NBA Copilot does **not** follow the editor pattern:
+
+| Step | What the model sees |
+|------|---------------------|
+| System prompt | `NBA_COPILOT_SYSTEM_BASE` in `open_query.py` — rules for tools + a line asking for `[n]` tied to *"the source index provided in the user message"* |
+| User messages | Only the chat history from `_build_input_messages` — **no** `format_citation_index` block |
+| During the run | Raw `ToolMessage` payloads inside the ReAct loop (the model reads JSON directly) |
+| After the run | `source_citations` attached in `runner._attach_citations` for the UI |
+
+Implications:
+
+- The **Sources** section and MCP timeline are reliable (built from the tracker).
+- Inline `[n]` in Copilot answers are **best-effort** today: the system prompt
+  references an index that is never injected into the chat messages.
+- A planned improvement is a **post-pass** (second LLM call after tools finish)
+  that supplies `format_citation_index` and asks the model to rewrite the answer
+  with valid `[n]` markers — same mechanism as the editor, but after the
+  tool-using loop.
+
+### What is not implemented yet
+
+- **Semantic phrase → tool output** — clicking an arbitrary sentence and
+  recovering the exact MCP JSON chunk without an `[n]` marker in the text.
+- **Copilot post-pass** — numbered index injected after tool calls complete.
+
 ## Brief output structure
 
 The `editor` agent uses an explicit markdown template so the daily brief is
@@ -242,3 +360,7 @@ being skipped. The Standout Statlines section is the one that consumes the
 boxscore-grounded output of the tool-using `stats` proposer — that's why
 adding ESPN's `nba_boxscore` tool changed the perceived quality of the
 brief more than any prompt tweak.
+
+The editor is also instructed to add inline `[n]` citations (see "Source
+traceability") when a fact comes from a specific reporter draft, using only
+ids from the source index provided in its prompt.
