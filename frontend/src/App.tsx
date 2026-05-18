@@ -12,10 +12,12 @@ import {
   type RunResult,
 } from "./api";
 import { AgentFlow, type AgentStatus } from "./components/AgentFlow";
+import { EvalDashboard } from "./components/EvalDashboard";
 import { EventLog } from "./components/EventLog";
 import { Markdown } from "./components/Markdown";
+import { RunMetricsPanel } from "./components/RunMetricsPanel";
 
-type Mode = "brief" | "query" | "compare";
+type Mode = "brief" | "query" | "compare" | "eval";
 
 const UI_TEXT: Record<
   LanguageCode,
@@ -58,11 +60,13 @@ const UI_TEXT: Record<
       brief: "Daily Brief",
       query: "NBA Copilot",
       compare: "MoA vs Single LLM",
+      eval: "Evaluation",
     },
     modeDescriptions: {
       brief: "One-click NBA briefing for last night's action.",
       query: "Chat with NBA Copilot - a tool-using MCP research assistant.",
       compare: "Daily Brief showdown: a single LLM vs the full MoA pipeline.",
+      eval: "Cost, latency, tool reliability and source coverage per run.",
     },
     askPlaceholder: "Ask an NBA question...",
     send: "Send",
@@ -99,11 +103,13 @@ const UI_TEXT: Record<
       brief: "Brief quotidien",
       query: "NBA Copilot",
       compare: "MoA vs LLM unique",
+      eval: "Évaluation",
     },
     modeDescriptions: {
       brief: "Un clic pour resumer les matchs de la veille.",
       query: "Discutez avec NBA Copilot, un assistant MCP avec outils.",
       compare: "Comparaison brief quotidien : LLM unique vs pipeline MoA.",
+      eval: "Coût, latence, fiabilité des outils et couverture des sources par run.",
     },
     askPlaceholder: "Posez une question NBA...",
     send: "Envoyer",
@@ -177,14 +183,16 @@ export default function App() {
 
   function start() {
     if (running) return;
+    if (mode === "eval") return;
+    const activeMode: "brief" | "query" | "compare" = mode;
     const trimmedQuery = query.trim();
-    if (mode === "query" && trimmedQuery.length < 3) {
+    if (activeMode === "query" && trimmedQuery.length < 3) {
       return;
     }
     resetRunArtifacts();
 
     let messagesForQuery: ChatMessage[] = [];
-    if (mode === "query") {
+    if (activeMode === "query") {
       const userMessage: ChatMessage = { role: "user", content: trimmedQuery };
       messagesForQuery = [...chatMessages, userMessage];
       setChatMessages(messagesForQuery);
@@ -193,10 +201,10 @@ export default function App() {
 
     setRunning(true);
     streamRun({
-      mode,
+      mode: activeMode,
       language,
-      query: mode === "query" ? "" : trimmedQuery,
-      messages: mode === "query" ? messagesForQuery : [],
+      query: activeMode === "query" ? "" : trimmedQuery,
+      messages: activeMode === "query" ? messagesForQuery : [],
       onFrame: (frame) => {
         if (frame.kind === "started") {
           setStatuses((s) => ({ ...s, kickoff: "running" }));
@@ -213,7 +221,7 @@ export default function App() {
           setStatuses((s) => ({ ...s, [frame.node]: "done" }));
         } else if (frame.kind === "result") {
           setResult(frame.result);
-          if (mode === "query") {
+          if (activeMode === "query") {
             setChatMessages((prev) => [
               ...prev,
               { role: "assistant", content: frame.result.final_brief || "(empty)" },
@@ -267,33 +275,37 @@ export default function App() {
           descriptions={ui.modeDescriptions}
         />
 
-        <div className="card flex flex-col md:flex-row md:items-center gap-3">
-          {mode === "query" && (
-            <input
-              className="input flex-1"
-              placeholder={ui.askPlaceholder}
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              disabled={running}
-              onKeyDown={(e) => e.key === "Enter" && start()}
-            />
-          )}
-          <button className="btn" onClick={start} disabled={running}>
-            {running ? ui.inProgress : mode === "query" ? ui.send : ui.runPipeline}
-          </button>
-          {(result || chatMessages.length > 0) && (
-            <button
-              className="btn-secondary"
-              onClick={resetConversation}
-              disabled={running}
-              title={ui.reset}
-            >
-              {ui.reset}
+        {mode !== "eval" && (
+          <div className="card flex flex-col md:flex-row md:items-center gap-3">
+            {mode === "query" && (
+              <input
+                className="input flex-1"
+                placeholder={ui.askPlaceholder}
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                disabled={running}
+                onKeyDown={(e) => e.key === "Enter" && start()}
+              />
+            )}
+            <button className="btn" onClick={start} disabled={running}>
+              {running ? ui.inProgress : mode === "query" ? ui.send : ui.runPipeline}
             </button>
-          )}
-        </div>
+            {(result || chatMessages.length > 0) && (
+              <button
+                className="btn-secondary"
+                onClick={resetConversation}
+                disabled={running}
+                title={ui.reset}
+              >
+                {ui.reset}
+              </button>
+            )}
+          </div>
+        )}
 
-        {mode === "query" ? (
+        {mode === "eval" ? (
+          <EvalDashboard language={language} />
+        ) : mode === "query" ? (
           <section className="space-y-4">
             <div>
               <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
@@ -341,7 +353,13 @@ export default function App() {
           </section>
         )}
 
-        {result && mode !== "query" && <ResultPanel result={result} mode={mode} ui={ui} />}
+        {result && mode !== "query" && mode !== "eval" && (
+          <ResultPanel result={result} mode={mode} ui={ui} />
+        )}
+
+        {result?.metrics && mode !== "eval" && (
+          <RunMetricsPanel metrics={result.metrics} language={language} />
+        )}
 
         <Footer ui={ui} />
       </main>

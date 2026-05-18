@@ -25,6 +25,84 @@ export interface RefinementView {
   content: string;
 }
 
+export interface AgentMetrics {
+  agent: string;
+  model: string;
+  llm_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  llm_latency_ms: number;
+  tool_calls: number;
+  tool_failures: number;
+  tool_latency_ms: number;
+  wall_clock_ms: number;
+}
+
+export interface ToolCallMetric {
+  agent: string;
+  tool: string;
+  latency_ms: number;
+  success: boolean;
+  error: string | null;
+  started_at: string;
+}
+
+export interface RunMetrics {
+  run_id: string;
+  mode: "brief" | "query" | "compare";
+  started_at: string;
+  finished_at: string;
+  duration_seconds: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  total_cost_usd: number;
+  llm_call_count: number;
+  tool_call_count: number;
+  tool_failure_count: number;
+  distinct_sources: number;
+  sources: string[];
+  agents: AgentMetrics[];
+  tool_calls: ToolCallMetric[];
+  moa_cost_usd: number;
+  baseline_cost_usd: number;
+  estimated_price: boolean;
+}
+
+export interface RunSummary {
+  run_id: string;
+  mode: "brief" | "query" | "compare";
+  date: string;
+  query: string;
+  language: "en" | "fr";
+  started_at: string;
+  duration_seconds: number;
+  total_cost_usd: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  llm_call_count: number;
+  tool_call_count: number;
+  tool_failure_count: number;
+  distinct_sources: number;
+  moa_cost_usd: number;
+  baseline_cost_usd: number;
+  estimated_price: boolean;
+}
+
+export interface DashboardSummary {
+  total_runs: number;
+  avg_cost_usd: number;
+  avg_duration_seconds: number;
+  tool_failure_rate: number;
+  cost_by_mode: Record<string, number>;
+  avg_cost_by_mode: Record<string, number>;
+  runs_by_mode: Record<string, number>;
+  compare_avg_moa_cost_usd: number;
+  compare_avg_baseline_cost_usd: number;
+  p95_duration_seconds: number;
+  last_run_at: string | null;
+}
+
 export interface RunResult {
   mode: "brief" | "query" | "compare";
   date: string;
@@ -37,6 +115,7 @@ export interface RunResult {
   started_at: string;
   finished_at: string;
   duration_seconds: number;
+  metrics: RunMetrics | null;
 }
 
 export interface AgentMeta {
@@ -72,6 +151,33 @@ export interface HealthInfo {
 
 export async function fetchHealth(): Promise<HealthInfo> {
   const r = await fetch(`${base}/health`);
+  return r.json();
+}
+
+// ─── Evaluation dashboard ────────────────────────────────────────────────────
+
+export async function fetchRuns(opts?: {
+  limit?: number;
+  mode?: "brief" | "query" | "compare";
+}): Promise<RunSummary[]> {
+  const params = new URLSearchParams();
+  if (opts?.limit) params.set("limit", String(opts.limit));
+  if (opts?.mode) params.set("mode", opts.mode);
+  const suffix = params.toString();
+  const r = await fetch(`${base}/runs${suffix ? `?${suffix}` : ""}`);
+  if (!r.ok) throw new Error(`/runs failed: ${r.status}`);
+  return r.json();
+}
+
+export async function fetchRunDetail(runId: string): Promise<RunResult> {
+  const r = await fetch(`${base}/runs/${encodeURIComponent(runId)}`);
+  if (!r.ok) throw new Error(`/runs/${runId} failed: ${r.status}`);
+  return r.json();
+}
+
+export async function fetchMetricsSummary(lastN = 100): Promise<DashboardSummary> {
+  const r = await fetch(`${base}/metrics/summary?last_n=${lastN}`);
+  if (!r.ok) throw new Error(`/metrics/summary failed: ${r.status}`);
   return r.json();
 }
 
