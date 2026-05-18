@@ -1,0 +1,16 @@
+[project]
+name = "nba-moa-agents-workspace"
+version = "0.1.0"
+description = "Workspace root for nba_moa_agents (shared tooling and uv workspace)"
+requires-python = ">=3.11"
+dependencies = [
+    "code-review-graph>=2.3.3",
+    "graphifyy>=0.8.10",
+    "nba-moa-agents",
+]
+
+[tool.uv.sources]
+nba-moa-agents = { workspace = true }
+
+[tool.uv.workspace]
+members = ["backend"]

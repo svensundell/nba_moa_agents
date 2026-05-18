@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "code-review-graph": {
+      "command": "${workspaceFolder}/.venv/bin/code-review-graph",
+      "args": ["serve"]
+    },
+    "graphify": {
+      "command": "${workspaceFolder}/.venv/bin/python",
+      "args": [
+        "-m",
+        "graphify.serve",
+        "${workspaceFolder}/graphify-out/graph.json"
+      ]
+    }
+  }
+}
