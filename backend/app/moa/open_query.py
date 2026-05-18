@@ -17,6 +17,7 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 from app.api.schemas import RunResult
 from app.mcp.client import mcp_registry
+from app.eval import current_tracker
 from app.moa.agents.base import (
     record_streamed_llm_call,
     record_streamed_tool_call,
@@ -37,6 +38,9 @@ Rules:
 - If evidence is missing, say so clearly instead of guessing.
 - If season averages are unavailable, explicitly say they are unavailable due provider/API plan limits.
 - End with a concise markdown answer with optional bullet points.
+- When you state a concrete fact from a tool result, add an inline citation [n]
+  matching the source index provided in the user message.
+- Do not invent citation numbers — only use ids from that index.
 """
 
 
@@ -54,6 +58,11 @@ def _event(
     content: str,
     *,
     model: str = "",
+    citation_id: int | None = None,
+    provider: str | None = None,
+    tool: str | None = None,
+    retrieved_at: datetime | None = None,
+    source_url: str | None = None,
 ) -> AgentEvent:
     return AgentEvent(
         agent="nba_copilot",
@@ -61,7 +70,29 @@ def _event(
         type=type_,  # type: ignore[arg-type]
         content=content,
         model=model,
+        citation_id=citation_id,
+        provider=provider,
+        tool=tool,
+        retrieved_at=retrieved_at,
+        source_url=source_url,
     )
+
+
+def _latest_citation_fields() -> dict[str, Any]:
+    tracker = current_tracker()
+    if tracker is None:
+        return {}
+    cites = tracker.list_citations()
+    if not cites:
+        return {}
+    cite = cites[-1]
+    return {
+        "citation_id": cite.id,
+        "provider": cite.provider,
+        "tool": cite.tool,
+        "retrieved_at": cite.retrieved_at,
+        "source_url": cite.url,
+    }
 
 
 def _extract_text(content: Any) -> str:
@@ -236,7 +267,12 @@ async def _stream_copilot(
             if dedupe_key in seen_tool_events:
                 continue
             seen_tool_events.add(dedupe_key)
-            ev = _event("tool", f"{tool_name}: {preview}", model=model_label)
+            ev = _event(
+                "tool",
+                f"{tool_name}: {preview}",
+                model=model_label,
+                **_latest_citation_fields(),
+            )
             events.append(ev)
             yield "event", ev.model_dump(mode="json")
         elif evt_type == "on_chat_model_start":

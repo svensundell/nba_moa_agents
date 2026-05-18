@@ -25,9 +25,10 @@ from typing import Literal
 from loguru import logger
 
 from app.api.schemas import ProposalView, RefinementView, RunResult
-from app.eval import RunTracker, use_tracker
+from app.eval import RunTracker, current_tracker, use_tracker
 from app.eval.repository import get_repository
 from app.eval.schemas import RunMetrics
+from app.moa.citations import merge_run_citations
 from app.moa.graph import GRAPH
 from app.moa.open_query import run_open_query, stream_open_query_frames
 from app.moa.state import AgentEvent, AgentProposal, MoAState, initial_state
@@ -56,6 +57,23 @@ def _record_sources(tracker: RunTracker, state: MoAState) -> None:
         tracker.add_proposal_sources(typed_proposals)
 
 
+def _attach_citations(result: RunResult) -> RunResult:
+    from app.moa.state import AgentProposal
+
+    tracker = current_tracker()
+    typed = [
+        AgentProposal(
+            agent=p.agent,
+            model=p.model,
+            summary=p.summary,
+            sources=p.sources,
+        )
+        for p in result.proposals
+    ]
+    result.source_citations = merge_run_citations(tracker, typed)
+    return result
+
+
 def _to_run_result(
     *,
     mode: Literal["brief", "query", "compare"],
@@ -64,7 +82,7 @@ def _to_run_result(
     metrics: RunMetrics | None = None,
 ) -> RunResult:
     finished_at = datetime.now()
-    return RunResult(
+    result = RunResult(
         mode=mode,
         date=state.get("date", ""),
         query=state.get("query", ""),
@@ -84,6 +102,7 @@ def _to_run_result(
         duration_seconds=(finished_at - started_at).total_seconds(),
         metrics=metrics,
     )
+    return _attach_citations(result)
 
 
 async def _persist_run(
@@ -149,6 +168,7 @@ async def run_full(
 
     metrics = tracker.finalize()
     result.metrics = metrics
+    result = _attach_citations(result)
     await _persist_run(metrics=metrics, result=result, language=language)
     return result
 
@@ -184,6 +204,7 @@ async def run_streaming(
                         final_result = RunResult.model_validate(frame["result"])
                         metrics = tracker.finalize()
                         final_result.metrics = metrics
+                        final_result = _attach_citations(final_result)
                         frame = {
                             "kind": "result",
                             "result": final_result.model_dump(mode="json"),

@@ -21,6 +21,19 @@ from pydantic import BaseModel, Field
 RunMode = Literal["brief", "query", "compare"]
 
 
+class SourceCitation(BaseModel):
+    """One auditable data source used during a pipeline run."""
+
+    id: int
+    provider: str
+    tool: str
+    agent: str
+    retrieved_at: datetime
+    url: str | None = None
+    title: str = ""
+    excerpt: str = ""
+
+
 class ToolCallMetric(BaseModel):
     """One MCP tool invocation recorded by the tracker."""
 

@@ -40,6 +40,11 @@ def event(
     *,
     content: str = "",
     model: str = "",
+    citation_id: int | None = None,
+    provider: str | None = None,
+    tool: str | None = None,
+    retrieved_at: datetime | None = None,
+    source_url: str | None = None,
 ) -> AgentEvent:
     """Convenience constructor for AgentEvent."""
     return AgentEvent(
@@ -48,6 +53,11 @@ def event(
         type=type_,  # type: ignore[arg-type]
         content=content,
         model=model,
+        citation_id=citation_id,
+        provider=provider,
+        tool=tool,
+        retrieved_at=retrieved_at,
+        source_url=source_url,
     )
 
 
@@ -193,12 +203,26 @@ async def mcp_invoke(
         ev = event(agent, _layer_for(agent), "error", content=f"{tool_name} failed: {exc}")
         raise MCPToolError(str(exc)) from exc
     _record(True)
+    cite = None
+    if tracker is not None:
+        cite = tracker.record_mcp_citation(
+            agent=agent,
+            tool_name=tool_name,
+            raw_text=text,
+            retrieved_at=started_at,
+            arguments=arguments,
+        )
     preview = text[:160].replace("\n", " ")
     ev = event(
         agent,
         _layer_for(agent),
         "tool",
         content=f"{tool_name}({_args_repr(arguments)}) → {preview}",
+        citation_id=cite.id if cite else None,
+        provider=cite.provider if cite else None,
+        tool=cite.tool if cite else None,
+        retrieved_at=cite.retrieved_at if cite else None,
+        source_url=cite.url if cite else None,
     )
     return text, ev
 
@@ -343,7 +367,12 @@ def record_streamed_tool_call(
         started_at=started_at or datetime.now(),
     )
     if success:
-        tracker.add_sources(sources_from_tool_output(tool_name, text))
+        tracker.record_mcp_citation(
+            agent=agent,
+            tool_name=tool_name,
+            raw_text=text,
+            retrieved_at=started_at or datetime.now(),
+        )
 
 
 # ─── Proposal helper ─────────────────────────────────────────────────────────

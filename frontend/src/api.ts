@@ -10,6 +10,22 @@ export interface AgentEvent {
   content: string;
   model: string;
   timestamp: string;
+  citation_id?: number | null;
+  provider?: string | null;
+  tool?: string | null;
+  retrieved_at?: string | null;
+  source_url?: string | null;
+}
+
+export interface SourceCitation {
+  id: number;
+  provider: string;
+  tool: string;
+  agent: string;
+  retrieved_at: string;
+  url?: string | null;
+  title: string;
+  excerpt: string;
 }
 
 export interface ProposalView {
@@ -116,6 +132,7 @@ export interface RunResult {
   finished_at: string;
   duration_seconds: number;
   metrics: RunMetrics | null;
+  source_citations: SourceCitation[];
 }
 
 export interface AgentMeta {

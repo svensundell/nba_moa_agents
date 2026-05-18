@@ -29,6 +29,12 @@ class AgentEvent(BaseModel):
     content: str = ""
     model: str = ""
     timestamp: datetime = Field(default_factory=datetime.now)
+    # Populated on MCP tool events for source traceability in the UI.
+    citation_id: int | None = None
+    provider: str | None = None
+    tool: str | None = None
+    retrieved_at: datetime | None = None
+    source_url: str | None = None
 
 
 class AgentProposal(BaseModel):

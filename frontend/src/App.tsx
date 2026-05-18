@@ -14,8 +14,10 @@ import {
 import { AgentFlow, type AgentStatus } from "./components/AgentFlow";
 import { EvalDashboard } from "./components/EvalDashboard";
 import { EventLog } from "./components/EventLog";
+import { CitedMarkdown } from "./components/CitedMarkdown";
 import { Markdown } from "./components/Markdown";
 import { RunMetricsPanel } from "./components/RunMetricsPanel";
+import { SourcesBibliography } from "./components/SourcesBibliography";
 
 type Mode = "brief" | "query" | "compare" | "eval";
 type RunMode = "brief" | "query" | "compare";
@@ -176,6 +178,7 @@ export default function App() {
   const [agents, setAgents] = useState<AgentMeta[]>([]);
   const [health, setHealth] = useState<HealthInfo | null>(null);
   const [runError, setRunError] = useState<string | null>(null);
+  const [activeCitationId, setActiveCitationId] = useState<number | null>(null);
   const ui = UI_TEXT[language];
 
   const refreshHealth = () => {
@@ -228,8 +231,13 @@ export default function App() {
   function handleModeChange(next: Mode) {
     if (next !== mode && !running) {
       setRunError(null);
+      setActiveCitationId(null);
     }
     setMode(next);
+  }
+
+  function handleCitationSelect(id: number) {
+    setActiveCitationId(id);
   }
 
   function start() {
@@ -397,7 +405,13 @@ export default function App() {
                 <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
                   {ui.mcpTimeline}
                 </h2>
-                <ToolTimeline events={events} running={running} ui={ui} />
+                <ToolTimeline
+                  events={events}
+                  running={running}
+                  ui={ui}
+                  activeCitationId={activeCitationId}
+                  citations={result?.source_citations}
+                />
               </div>
               <div>
                 <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
@@ -406,6 +420,14 @@ export default function App() {
                 <EventLog events={events} />
               </div>
             </div>
+            {result?.source_citations && result.source_citations.length > 0 && (
+              <SourcesBibliography
+                citations={result.source_citations}
+                language={language}
+                activeId={activeCitationId}
+                onSelect={handleCitationSelect}
+              />
+            )}
           </section>
         ) : (
           <section className="space-y-6">
@@ -420,7 +442,13 @@ export default function App() {
                 <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
                   {ui.mcpTimeline}
                 </h2>
-                <ToolTimeline events={events} running={running} ui={ui} />
+                <ToolTimeline
+                  events={events}
+                  running={running}
+                  ui={ui}
+                  activeCitationId={activeCitationId}
+                  citations={result?.source_citations}
+                />
               </div>
               <div>
                 <h2 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-2">
@@ -433,7 +461,14 @@ export default function App() {
         )}
 
         {result && mode !== "query" && mode !== "eval" && (
-          <ResultPanel result={result} mode={mode} ui={ui} />
+          <ResultPanel
+            result={result}
+            mode={mode}
+            ui={ui}
+            language={language}
+            onCitationSelect={handleCitationSelect}
+            activeCitationId={activeCitationId}
+          />
         )}
 
         {result?.metrics && mode !== "eval" && (
@@ -617,11 +652,18 @@ function ResultPanel({
   result,
   mode,
   ui,
+  language,
+  onCitationSelect,
+  activeCitationId,
 }: {
   result: RunResult;
   mode: Mode;
   ui: (typeof UI_TEXT)["en"];
+  language: LanguageCode;
+  onCitationSelect: (id: number) => void;
+  activeCitationId: number | null;
 }) {
+  const citations = result.source_citations ?? [];
   const toolCalls = result.events.filter((e) => e.type === "tool").length;
   return (
     <section className="space-y-4">
@@ -654,13 +696,19 @@ function ResultPanel({
             <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-muted mb-3">
               {ui.singleLlm}
             </h3>
-            <Markdown content={result.single_llm_answer || "(empty)"} />
+            <CitedMarkdown
+              content={result.single_llm_answer || "(empty)"}
+              onCitationClick={onCitationSelect}
+            />
           </div>
           <div className="card border-accent/40 bg-amber-50/60">
             <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-accent mb-3">
               {ui.moa}
             </h3>
-            <Markdown content={result.final_brief || "(empty)"} />
+            <CitedMarkdown
+              content={result.final_brief || "(empty)"}
+              onCitationClick={onCitationSelect}
+            />
           </div>
         </div>
       ) : (
@@ -668,8 +716,20 @@ function ResultPanel({
           <h3 className="text-[13px] font-semibold uppercase tracking-[0.08em] text-accent mb-3">
             {mode === "brief" ? ui.finalBriefing : ui.finalAnswer}
           </h3>
-          <Markdown content={result.final_brief || "(empty)"} />
+          <CitedMarkdown
+            content={result.final_brief || "(empty)"}
+            onCitationClick={onCitationSelect}
+          />
         </div>
+      )}
+
+      {citations.length > 0 && (
+        <SourcesBibliography
+          citations={citations}
+          language={language}
+          activeId={activeCitationId}
+          onSelect={onCitationSelect}
+        />
       )}
 
       {mode !== "query" && (
@@ -685,6 +745,26 @@ function ResultPanel({
                   <span className="text-xs font-mono text-muted">{p.model}</span>
                 </div>
                 <p className="text-sm text-slate-700 whitespace-pre-wrap">{p.summary}</p>
+                {p.sources.length > 0 && (
+                  <ul className="mt-2 flex flex-wrap gap-1">
+                    {p.sources.map((s) => (
+                      <li key={s}>
+                        {s.startsWith("http") ? (
+                          <a
+                            href={s}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-xs text-sky-700 hover:underline"
+                          >
+                            {s.length > 48 ? `${s.slice(0, 45)}…` : s}
+                          </a>
+                        ) : (
+                          <span className="text-xs font-mono text-muted">{s}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             ))}
             {result.refinements.map((r) => (
@@ -710,30 +790,46 @@ type ToolStep = {
   at: string;
   tool: string;
   preview: string;
+  citationId?: number | null;
+  provider?: string | null;
+  sourceUrl?: string | null;
+  retrievedAt?: string | null;
+  excerpt?: string;
 };
 
 function ToolTimeline({
   events,
   running,
   ui,
+  activeCitationId,
+  citations,
 }: {
   events: AgentEvent[];
   running: boolean;
   ui: (typeof UI_TEXT)["en"];
+  activeCitationId?: number | null;
+  citations?: import("./api").SourceCitation[];
 }) {
   const steps = useMemo<ToolStep[]>(() => {
     return events
       .filter((e) => e.type === "tool")
       .map((e) => {
-        const [left, ...rest] = e.content.split(":");
+        const toolLabel = e.tool || e.content.split("(")[0]?.split(":")[0]?.trim() || "tool";
+        const [, ...rest] = e.content.split(":");
         const preview = rest.join(":").trim() || e.content;
+        const cite = citations?.find((c) => c.id === e.citation_id);
         return {
-          at: new Date(e.timestamp).toLocaleTimeString(),
-          tool: left.trim(),
+          at: new Date(e.retrieved_at || e.timestamp).toLocaleTimeString(),
+          tool: toolLabel,
           preview,
+          citationId: e.citation_id,
+          provider: e.provider,
+          sourceUrl: e.source_url,
+          retrievedAt: e.retrieved_at,
+          excerpt: cite?.excerpt,
         };
       });
-  }, [events]);
+  }, [events, citations]);
 
   const hasError = events.some((e) => e.type === "error");
   const started = events.some((e) => e.type === "start");
@@ -762,12 +858,40 @@ function ToolTimeline({
 
       <div className="space-y-3">
         {steps.map((s, idx) => (
-          <div key={`${s.at}-${idx}`} className="rounded-lg border border-border p-3 bg-slate-50">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-sm font-mono text-amber-700">{s.tool}</span>
+          <div
+            key={`${s.at}-${idx}`}
+            className={clsx(
+              "rounded-lg border p-3 bg-slate-50",
+              activeCitationId != null && s.citationId === activeCitationId
+                ? "border-accent ring-2 ring-accent/30 bg-amber-50/50"
+                : "border-border",
+            )}
+          >
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap">
+                {s.citationId != null && (
+                  <span className="font-mono text-xs font-semibold text-accent">[{s.citationId}]</span>
+                )}
+                <span className="text-sm font-mono text-amber-700">{s.tool}</span>
+                {s.provider && (
+                  <span className="pill text-xs border-border text-muted">{s.provider}</span>
+                )}
+              </div>
               <span className="text-xs text-muted">{s.at}</span>
             </div>
-            <p className="text-sm text-slate-700 mt-2 whitespace-pre-wrap">{s.preview}</p>
+            {s.sourceUrl && (
+              <a
+                href={s.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-sky-700 hover:underline mt-1 inline-block"
+              >
+                {s.sourceUrl.length > 60 ? `${s.sourceUrl.slice(0, 57)}…` : s.sourceUrl}
+              </a>
+            )}
+            <p className="text-sm text-slate-700 mt-2 whitespace-pre-wrap">
+              {s.excerpt || s.preview}
+            </p>
           </div>
         ))}
       </div>

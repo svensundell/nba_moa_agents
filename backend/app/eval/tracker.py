@@ -31,11 +31,12 @@ from collections.abc import AsyncIterator, Iterable, Iterator
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 from datetime import datetime
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from app.eval.pricing import cost_usd as compute_cost_usd
 from app.eval.pricing import price_for_model
-from app.eval.schemas import AgentMetrics, RunMetrics, ToolCallMetric
+from app.eval.schemas import AgentMetrics, RunMetrics, SourceCitation, ToolCallMetric
+from app.moa.citations import citation_from_mcp, urls_from_payload
 
 if TYPE_CHECKING:
     from app.moa.state import AgentProposal
@@ -60,6 +61,8 @@ class RunTracker:
         self._agents: dict[str, AgentMetrics] = {}
         self._tool_calls: list[ToolCallMetric] = []
         self._sources: set[str] = set()
+        self._citations: list[SourceCitation] = []
+        self._citation_seq: int = 0
         self._estimated_price: bool = False
 
     # ------------------------------------------------------------------
@@ -147,6 +150,35 @@ class RunTracker:
         for src in sources:
             if src:
                 self._sources.add(src)
+
+    def list_citations(self) -> list[SourceCitation]:
+        """Structured citations recorded via :meth:`record_mcp_citation`."""
+        return list(self._citations)
+
+    def record_mcp_citation(
+        self,
+        *,
+        agent: str,
+        tool_name: str,
+        raw_text: str,
+        retrieved_at: datetime,
+        arguments: dict[str, Any] | None = None,
+    ) -> SourceCitation:
+        """Register one MCP tool result as a numbered source citation."""
+        self._citation_seq += 1
+        cite = citation_from_mcp(
+            citation_id=self._citation_seq,
+            agent=agent,
+            tool_name=tool_name,
+            raw_text=raw_text,
+            retrieved_at=retrieved_at,
+            arguments=arguments,
+        )
+        self._citations.append(cite)
+        self._sources.add(f"mcp:{tool_name}")
+        for url in urls_from_payload(raw_text):
+            self._sources.add(url)
+        return cite
 
     def add_proposal_sources(self, proposals: Iterable[AgentProposal]) -> None:
         """Convenience: extract source strings from a proposals list."""

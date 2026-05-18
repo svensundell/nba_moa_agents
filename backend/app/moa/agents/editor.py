@@ -13,7 +13,9 @@ Outputs:
 
 from __future__ import annotations
 
+from app.eval import current_tracker
 from app.moa.agents.base import call_llm, event
+from app.moa.citations import format_citation_index, merge_run_citations
 from app.moa.llm import AGENT_MODELS, model_id
 from app.moa.state import MoAState
 
@@ -55,6 +57,9 @@ Rules:
 - Never invent stats, scores, or quotes.
 - If a section has no data, write "No notable items today." instead of skipping.
 - No emojis, no clickbait headlines.
+- When stating a fact grounded in a reporter draft, add an inline citation [n]
+  using the source index below (one number per distinct source).
+- Do not invent citation numbers — only use ids from the provided index.
 """
 
 
@@ -98,19 +103,25 @@ async def editor_agent(state: MoAState) -> dict:
 
     drafts = _drafts_block(state)
     refinements = _refinements_block(state)
+    tracker = current_tracker()
+    citations = merge_run_citations(tracker, state.get("proposals", []))
+    index_block = format_citation_index(citations)
 
     if mode == "query":
         system = f"{QUERY_SYSTEM}\n\n{_language_instruction(language)}"
         user = (
             f"User question: {query}\n\n"
             f"Refinements:\n{refinements}\n\n"
-            f"Raw drafts:\n{drafts}\n\nWrite the answer."
+            f"Raw drafts:\n{drafts}\n\n"
+            f"Source index (use [n] inline when citing facts):\n{index_block}\n\n"
+            "Write the answer."
         )
     else:
         system = f"{BRIEF_SYSTEM.replace('{date}', date)}\n\n{_language_instruction(language)}"
         user = (
             f"Refinements:\n{refinements}\n\n"
             f"Raw drafts:\n{drafts}\n\n"
+            f"Source index (use [n] inline when citing facts):\n{index_block}\n\n"
             "Write the full briefing now."
         )
 
