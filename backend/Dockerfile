@@ -15,5 +15,10 @@ COPY README.md /app/README.md
 WORKDIR /app/backend
 RUN pip install --no-cache-dir -e .
 
+RUN mkdir -p /app/data
+
 EXPOSE 8000
+HEALTHCHECK --interval=10s --timeout=5s --retries=12 --start-period=90s \
+    CMD curl -fsS http://127.0.0.1:8000/api/health || exit 1
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

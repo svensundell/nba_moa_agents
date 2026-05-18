@@ -1,0 +1,15 @@
+.git
+.cursor
+**/__pycache__
+**/*.pyc
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+backend/.venv
+frontend/node_modules
+frontend/dist
+data
+backend/graphify-out
+graphify-out
+*.md
+!README.md

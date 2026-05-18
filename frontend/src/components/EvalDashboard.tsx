@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import {
+  EMPTY_DASHBOARD_SUMMARY,
   fetchMetricsSummary,
   fetchRunDetail,
   fetchRuns,
@@ -52,6 +53,8 @@ type T = {
   brief: string;
   baselineHeading: string;
   noDataChart: string;
+  warningPartial: string;
+  backendUnreachable: string;
 };
 
 const COPY: Record<LanguageCode, T> = {
@@ -96,6 +99,9 @@ const COPY: Record<LanguageCode, T> = {
     brief: "Final brief",
     baselineHeading: "Single-LLM baseline",
     noDataChart: "No data yet.",
+    warningPartial: "Some metrics could not be loaded:",
+    backendUnreachable:
+      "Cannot reach the API. Start the backend on port 8000, then click Refresh.",
   },
   fr: {
     title: "Tableau de bord d'évaluation",
@@ -140,6 +146,9 @@ const COPY: Record<LanguageCode, T> = {
     brief: "Brief final",
     baselineHeading: "Baseline LLM unique",
     noDataChart: "Pas encore de donnée.",
+    warningPartial: "Certaines métriques n'ont pas pu être chargées :",
+    backendUnreachable:
+      "API injoignable. Démarre le backend sur le port 8000, puis clique sur Rafraîchir.",
   },
 };
 
@@ -183,23 +192,52 @@ export function EvalDashboard({ language }: { language: LanguageCode }) {
   const [selectedRun, setSelectedRun] = useState<RunResult | null>(null);
   const [selectedLoading, setSelectedLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [warning, setWarning] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
-    try {
-      const [s, r] = await Promise.all([
-        fetchMetricsSummary(100),
-        fetchRuns({ limit: 50, mode: mode === "all" ? undefined : mode }),
-      ]);
-      setSummary(s);
-      setRuns(r);
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setLoading(false);
+    setWarning(null);
+    const modeFilter = mode === "all" ? undefined : mode;
+    const [summarySettled, runsSettled] = await Promise.allSettled([
+      fetchMetricsSummary(100),
+      fetchRuns({ limit: 50, mode: modeFilter }),
+    ]);
+
+    const summaryOk = summarySettled.status === "fulfilled";
+    const runsOk = runsSettled.status === "fulfilled";
+
+    if (summaryOk) {
+      setSummary(summarySettled.value);
+    } else {
+      setSummary(EMPTY_DASHBOARD_SUMMARY);
     }
-  }, [mode]);
+
+    if (runsOk) {
+      setRuns(runsSettled.value);
+    } else {
+      setRuns([]);
+    }
+
+    const partialErrors: string[] = [];
+    if (!summaryOk) {
+      partialErrors.push((summarySettled.reason as Error).message);
+    }
+    if (!runsOk) {
+      partialErrors.push((runsSettled.reason as Error).message);
+    }
+
+    if (!summaryOk && !runsOk) {
+      setError(
+        partialErrors.join(" ") ||
+          t.backendUnreachable,
+      );
+    } else if (partialErrors.length > 0) {
+      setWarning(`${t.warningPartial} ${partialErrors.join(" ")}`);
+    }
+
+    setLoading(false);
+  }, [mode, t.backendUnreachable, t.warningPartial]);
 
   useEffect(() => {
     void refresh();
@@ -224,7 +262,7 @@ export function EvalDashboard({ language }: { language: LanguageCode }) {
 
   const costByMode = useMemo(() => {
     if (!summary) return [];
-    return Object.entries(summary.cost_by_mode).map(([m, v]) => ({
+    return Object.entries(summary.cost_by_mode ?? {}).map(([m, v]) => ({
       label: m,
       value: v,
     }));
@@ -276,7 +314,13 @@ export function EvalDashboard({ language }: { language: LanguageCode }) {
         </div>
       )}
 
-      {summary && summary.total_runs === 0 && !loading && (
+      {warning && !error && (
+        <div className="card border-amber-300 bg-amber-50 text-amber-800 text-sm">
+          {warning}
+        </div>
+      )}
+
+      {summary && summary.total_runs === 0 && !loading && !error && (
         <div className="card text-base text-muted italic">{t.empty}</div>
       )}
 

@@ -53,6 +53,10 @@ const UI_TEXT: Record<
     userLabel: string;
     assistantLabel: string;
     assistantThinking: string;
+    backendNotReady: string;
+    pipelineError: string;
+    healthRetryHint: string;
+    retryConnection: string;
   }
 > = {
   en: {
@@ -97,6 +101,12 @@ const UI_TEXT: Record<
     userLabel: "You",
     assistantLabel: "Assistant",
     assistantThinking: "Assistant is thinking...",
+    backendNotReady:
+      "Backend unavailable: start the API (port 8000) and wait for MCP tools to load.",
+    pipelineError: "Pipeline failed",
+    healthRetryHint:
+      "From the project root: cd backend && uv run uvicorn app.main:app --reload",
+    retryConnection: "Retry connection",
   },
   fr: {
     modeLabels: {
@@ -142,6 +152,12 @@ const UI_TEXT: Record<
     userLabel: "Vous",
     assistantLabel: "Assistant",
     assistantThinking: "Assistant en train de reflechir...",
+    backendNotReady:
+      "Backend indisponible : demarrez l'API (port 8000) et attendez le chargement des outils MCP.",
+    pipelineError: "Echec du pipeline",
+    healthRetryHint:
+      "A la racine du projet : cd backend && uv run uvicorn app.main:app --reload",
+    retryConnection: "Reessayer la connexion",
   },
 };
 
@@ -156,12 +172,26 @@ export default function App() {
   const [result, setResult] = useState<RunResult | null>(null);
   const [agents, setAgents] = useState<AgentMeta[]>([]);
   const [health, setHealth] = useState<HealthInfo | null>(null);
+  const [runError, setRunError] = useState<string | null>(null);
   const ui = UI_TEXT[language];
+
+  const refreshHealth = () => {
+    fetchHealth()
+      .then(setHealth)
+      .catch(() => setHealth(null));
+  };
 
   useEffect(() => {
     fetchAgents().then(setAgents).catch(() => setAgents([]));
-    fetchHealth().then(setHealth).catch(() => setHealth(null));
+    refreshHealth();
   }, []);
+
+  useEffect(() => {
+    const coreReady = Boolean(health?.has_openrouter) && Boolean(health?.mcp_initialised);
+    if (coreReady) return;
+    const id = window.setInterval(refreshHealth, 5000);
+    return () => window.clearInterval(id);
+  }, [health?.has_openrouter, health?.mcp_initialised]);
 
   const models = useMemo(() => {
     const map: Record<string, string> = {};
@@ -189,6 +219,13 @@ export default function App() {
     if (activeMode === "query" && trimmedQuery.length < 3) {
       return;
     }
+    const coreReady = Boolean(health?.has_openrouter) && Boolean(health?.mcp_initialised);
+    if (!coreReady) {
+      setRunError(ui.backendNotReady);
+      refreshHealth();
+      return;
+    }
+    setRunError(null);
     resetRunArtifacts();
 
     let messagesForQuery: ChatMessage[] = [];
@@ -229,6 +266,7 @@ export default function App() {
           }
           setRunning(false);
         } else if (frame.kind === "error") {
+          setRunError(frame.message);
           setRunning(false);
         }
       },
@@ -263,7 +301,13 @@ export default function App() {
       />
       <div className="absolute inset-0 bg-gradient-to-r from-ink/85 via-ink/55 to-ink/85 pointer-events-none z-0" />
       <div className="relative z-10">
-        <Header health={health} language={language} setLanguage={setLanguage} ui={ui} />
+        <Header
+          health={health}
+          language={language}
+          setLanguage={setLanguage}
+          ui={ui}
+          onRetryHealth={refreshHealth}
+        />
       </div>
 
       <main className="relative z-10 max-w-7xl mx-auto px-6 py-6 space-y-6">
@@ -274,6 +318,15 @@ export default function App() {
           labels={ui.modeLabels}
           descriptions={ui.modeDescriptions}
         />
+
+        {runError && (
+          <div className="card border-red-300 bg-red-50 text-red-800 text-sm space-y-2">
+            <p>
+              <strong>{ui.pipelineError}:</strong> {runError}
+            </p>
+            <p className="text-red-700/90">{ui.healthRetryHint}</p>
+          </div>
+        )}
 
         {mode !== "eval" && (
           <div className="card flex flex-col md:flex-row md:items-center gap-3">
@@ -372,13 +425,15 @@ function Header({
   language,
   setLanguage,
   ui,
+  onRetryHealth,
 }: {
   health: HealthInfo | null;
   language: LanguageCode;
   setLanguage: (language: LanguageCode) => void;
   ui: (typeof UI_TEXT)["en"];
+  onRetryHealth: () => void;
 }) {
-  const toolCount = health?.mcp_tools.length ?? 0;
+  const toolCount = health?.mcp_tools?.length ?? 0;
   const coreReady = Boolean(health?.has_openrouter) && Boolean(health?.mcp_initialised);
   const optionalMissing = health?.has_balldontlie === false;
 
@@ -448,9 +503,21 @@ function Header({
               <HealthPill
                 ok={health?.mcp_initialised}
                 label={`MCP (${toolCount} tools)`}
-                title={health?.mcp_tools.join(", ")}
+                title={health?.mcp_tools?.join(", ") ?? ""}
               />
+              {!coreReady && (
+                <button
+                  type="button"
+                  className="pill border-border text-muted hover:border-accent hover:text-accent"
+                  onClick={onRetryHealth}
+                >
+                  {ui.retryConnection}
+                </button>
+              )}
             </div>
+            {!coreReady && (
+              <p className="text-xs text-muted mt-2 max-w-xl">{ui.healthRetryHint}</p>
+            )}
           </div>
         </div>
       </div>

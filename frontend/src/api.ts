@@ -149,12 +149,38 @@ export interface HealthInfo {
   mcp_tools: string[];
 }
 
-export async function fetchHealth(): Promise<HealthInfo> {
+export async function fetchHealth(): Promise<HealthInfo | null> {
   const r = await fetch(`${base}/health`);
-  return r.json();
+  if (!r.ok) return null;
+  const data = (await r.json()) as HealthInfo;
+  if (!Array.isArray(data.mcp_tools)) return null;
+  return data;
 }
 
 // ─── Evaluation dashboard ────────────────────────────────────────────────────
+
+export const EMPTY_DASHBOARD_SUMMARY: DashboardSummary = {
+  total_runs: 0,
+  avg_cost_usd: 0,
+  avg_duration_seconds: 0,
+  tool_failure_rate: 0,
+  cost_by_mode: {},
+  avg_cost_by_mode: {},
+  runs_by_mode: {},
+  compare_avg_moa_cost_usd: 0,
+  compare_avg_baseline_cost_usd: 0,
+  p95_duration_seconds: 0,
+  last_run_at: null,
+};
+
+function apiError(path: string, status: number): Error {
+  if (status === 404) {
+    return new Error(
+      `${path} returned 404. Start the backend from backend/ (uv run uvicorn app.main:app --reload) and confirm /api/runs exists in http://localhost:8000/docs.`,
+    );
+  }
+  return new Error(`${path} failed: ${status}`);
+}
 
 export async function fetchRuns(opts?: {
   limit?: number;
@@ -164,20 +190,23 @@ export async function fetchRuns(opts?: {
   if (opts?.limit) params.set("limit", String(opts.limit));
   if (opts?.mode) params.set("mode", opts.mode);
   const suffix = params.toString();
-  const r = await fetch(`${base}/runs${suffix ? `?${suffix}` : ""}`);
-  if (!r.ok) throw new Error(`/runs failed: ${r.status}`);
+  const path = `${base}/runs${suffix ? `?${suffix}` : ""}`;
+  const r = await fetch(path);
+  if (!r.ok) throw apiError("/api/runs", r.status);
   return r.json();
 }
 
 export async function fetchRunDetail(runId: string): Promise<RunResult> {
-  const r = await fetch(`${base}/runs/${encodeURIComponent(runId)}`);
-  if (!r.ok) throw new Error(`/runs/${runId} failed: ${r.status}`);
+  const path = `${base}/runs/${encodeURIComponent(runId)}`;
+  const r = await fetch(path);
+  if (!r.ok) throw apiError(path, r.status);
   return r.json();
 }
 
 export async function fetchMetricsSummary(lastN = 100): Promise<DashboardSummary> {
-  const r = await fetch(`${base}/metrics/summary?last_n=${lastN}`);
-  if (!r.ok) throw new Error(`/metrics/summary failed: ${r.status}`);
+  const path = `${base}/metrics/summary?last_n=${lastN}`;
+  const r = await fetch(path);
+  if (!r.ok) throw apiError("/api/metrics/summary", r.status);
   return r.json();
 }
 
@@ -203,8 +232,25 @@ export function streamRun(opts: RunOptions): { close: () => void } {
   const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
   const url = `${proto}//${window.location.host}${base}/ws/run`;
   const ws = new WebSocket(url);
+  let finished = false;
+
+  const fail = (message: string) => {
+    if (finished) return;
+    finished = true;
+    opts.onFrame({ kind: "error", message });
+  };
+
+  const connectTimeout = window.setTimeout(() => {
+    if (ws.readyState === WebSocket.CONNECTING) {
+      ws.close();
+      fail(
+        "Cannot reach backend (WebSocket timeout). Ensure the API is running on port 8000.",
+      );
+    }
+  }, 12_000);
 
   ws.onopen = () => {
+    window.clearTimeout(connectTimeout);
     ws.send(
       JSON.stringify({
         mode: opts.mode,
@@ -219,6 +265,9 @@ export function streamRun(opts: RunOptions): { close: () => void } {
   ws.onmessage = (e) => {
     try {
       const frame: StreamFrame = JSON.parse(e.data);
+      if (frame.kind === "result" || frame.kind === "error") {
+        finished = true;
+      }
       opts.onFrame(frame);
     } catch (err) {
       console.error("bad frame", err, e.data);
@@ -227,11 +276,21 @@ export function streamRun(opts: RunOptions): { close: () => void } {
 
   ws.onerror = (e) => {
     console.error("websocket error", e);
-    opts.onFrame({ kind: "error", message: "WebSocket error" });
+    window.clearTimeout(connectTimeout);
+    fail("WebSocket error. Is the backend running (uvicorn on :8000)?");
+  };
+
+  ws.onclose = (ev) => {
+    window.clearTimeout(connectTimeout);
+    if (!finished && !ev.wasClean) {
+      fail("WebSocket closed unexpectedly. Restart the backend and reload the page.");
+    }
   };
 
   return {
     close: () => {
+      window.clearTimeout(connectTimeout);
+      finished = true;
       try {
         ws.close();
       } catch {

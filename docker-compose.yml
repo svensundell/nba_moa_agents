@@ -4,18 +4,37 @@ services:
       context: .
       dockerfile: backend/Dockerfile
     env_file: .env
+    environment:
+      ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+      EVAL_DB_PATH: /app/data/eval.db
+    # Direct API/docs on :8001 (avoids clashing with a local uvicorn on :8000).
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8001:8000"
     volumes:
       - ./mcp_servers:/app/mcp_servers:ro
+      - eval_data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "curl",
+          "-fsS",
+          "http://127.0.0.1:8000/api/health",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 90s
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
     ports:
-      - "5173:5173"
-    environment:
-      VITE_API_BASE: http://backend:8000
+      - "127.0.0.1:5173:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
+
+volumes:
+  eval_data:
