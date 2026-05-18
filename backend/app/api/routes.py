@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 
-from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from loguru import logger
 
 from app.api.runner import run_full, run_streaming
@@ -16,6 +16,8 @@ from app.api.schemas import (
     RunResult,
 )
 from app.core.config import get_settings
+from app.eval.repository import get_repository
+from app.eval.schemas import DashboardSummary, RunSummary
 from app.mcp.client import mcp_registry
 from app.moa.llm import AGENT_MODELS, MODEL_REGISTRY, model_id
 
@@ -82,6 +84,49 @@ async def compare(req: CompareRequest) -> RunResult:
         date=req.date,
         language=_normalise_language(req.language),
     )
+
+
+@router.get("/runs", response_model=list[RunSummary])
+async def list_runs(
+    limit: int = Query(default=50, ge=1, le=500),
+    mode: str | None = Query(default=None, pattern="^(brief|query|compare)$"),
+) -> list[RunSummary]:
+    """List the most recent persisted runs.
+
+    Filters by ``mode`` and caps the result set at ``limit`` rows (max
+    500). Used by the evaluation dashboard to render the history table
+    and the cost/latency charts.
+    """
+    try:
+        repo = get_repository()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return await repo.list_runs(limit=limit, mode=mode)
+
+
+@router.get("/runs/{run_id}", response_model=RunResult)
+async def get_run(run_id: str) -> RunResult:
+    """Return the full :class:`RunResult` payload for a persisted run."""
+    try:
+        repo = get_repository()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    payload = await repo.get_run_payload(run_id)
+    if payload is None:
+        raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
+    return RunResult.model_validate(payload)
+
+
+@router.get("/metrics/summary", response_model=DashboardSummary)
+async def metrics_summary(
+    last_n: int = Query(default=100, ge=1, le=1000),
+) -> DashboardSummary:
+    """Aggregates rendered on the evaluation dashboard landing card."""
+    try:
+        repo = get_repository()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return await repo.summary(last_n=last_n)
 
 
 @router.websocket("/ws/run")

@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     balldontlie_api_key: str = Field(default="")
     reddit_user_agent: str = Field(default="")
 
+    # Where the evaluation SQLite database lives. Defaults to
+    # ``data/eval.db`` at the project root; override via env var
+    # ``EVAL_DB_PATH`` for tests or CI.
+    eval_db_path: str = Field(default="")
+
     @property
     def origins(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
@@ -44,6 +49,13 @@ class Settings(BaseSettings):
     @property
     def has_balldontlie(self) -> bool:
         return bool(self.balldontlie_api_key.strip())
+
+    @property
+    def resolved_eval_db_path(self) -> Path:
+        """Resolve the eval DB path, falling back to ``<root>/data/eval.db``."""
+        if self.eval_db_path:
+            return Path(self.eval_db_path).expanduser().resolve()
+        return PROJECT_ROOT / "data" / "eval.db"
 
 
 @lru_cache

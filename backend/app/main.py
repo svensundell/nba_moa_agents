@@ -12,27 +12,42 @@ from app import __version__
 from app.api.routes import router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.eval.repository import configure_repository
 from app.mcp.client import mcp_registry
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialise the MCP registry once when the server boots.
+    """Initialise the MCP registry and the eval repository at boot.
 
     All three MCP servers (nba_stats, reddit, espn) are spawned as stdio
     subprocesses via ``MultiServerMCPClient``. Their tool schemas are loaded
     eagerly so agents can look them up by name throughout the request cycle.
+
+    The eval repository owns a long-lived aiosqlite connection that
+    serves the run-history endpoints under ``/api/runs`` and
+    ``/api/metrics/summary``. Persistence failures are isolated from the
+    main pipeline by the runner layer.
     """
+    settings = get_settings()
+    repo = configure_repository(settings.resolved_eval_db_path)
+    try:
+        await repo.initialize()
+    except Exception as exc:  # pragma: no cover - depends on filesystem
+        logger.error(f"Eval repository initialisation failed: {exc}")
+        raise
+
     try:
         await mcp_registry.initialize()
     except Exception as exc:  # pragma: no cover - depends on subprocesses
         logger.error(f"MCP initialisation failed: {exc}")
-        # Re-raise to abort startup — the project is MCP-only by design.
+        await repo.close()
         raise
     try:
         yield
     finally:
         await mcp_registry.shutdown()
+        await repo.close()
 
 
 def create_app() -> FastAPI:
@@ -65,7 +80,15 @@ def create_app() -> FastAPI:
             "name": "nba-moa-agents",
             "version": __version__,
             "docs": "/docs",
-            "endpoints": ["/api/brief", "/api/query", "/api/compare", "/api/ws/run"],
+            "endpoints": [
+                "/api/brief",
+                "/api/query",
+                "/api/compare",
+                "/api/ws/run",
+                "/api/runs",
+                "/api/runs/{run_id}",
+                "/api/metrics/summary",
+            ],
         }
 
     return app
