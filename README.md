@@ -73,13 +73,38 @@ LangGraph executes nodes that share an incoming edge in **parallel**, so layer-1
 
 All three are launched as **stdio subprocesses** by `langchain_mcp_adapters.MultiServerMCPClient` at FastAPI startup, with `tool_name_prefix=True` so each tool surfaces as `<server>_<tool>` (e.g. `nba_stats_get_games`, `espn_nba_boxscore`).
 
-## Three demo modes
+## Four demo modes
 
 | Mode                  | Orchestration          | What it does |
 |-----------------------|------------------------|--------------|
 | **Daily Brief**       | Deterministic LangGraph MoA | One click → a structured 7-section briefing for last night (Quick Hits / Box Score Recap / Standout Statlines / Trades & News / Injuries Watch / Storyline / Fan Pulse). |
 | **NBA Copilot** | Dynamic LangChain `create_agent` | Multi-turn NBA chat with tool-using reasoning. The agent decides which MCP tools to call from conversation context, and tool decisions stream live to the UI. |
 | **MoA vs Single LLM** | LangGraph MoA + parallel single-LLM baseline | Side-by-side comparison showing where the MoA pattern adds value (and where it doesn't). |
+| **Evaluation Dashboard** | Persisted run metrics (SQLite) | Cost (USD), token usage, per-agent latency, MCP tool failure rate and source coverage for every run. MoA vs single-LLM cost ratio is charted for `compare` runs. |
+
+### Evaluation & observability
+
+Every pipeline invocation is observed end-to-end and persisted to
+`data/eval.db` (SQLite, auto-created at startup). A `RunTracker` is
+bound to each request via a `ContextVar`, so every `call_llm` and every
+MCP `mcp_invoke` records:
+
+- LLM tokens (input / output) and (priced) cost per `(agent, model)`
+- LLM and MCP tool latency
+- MCP success / failure (powering a tool failure-rate gauge)
+- Distinct sources cited across the run
+- Wall-clock time per LangGraph node
+
+Three endpoints expose the history:
+
+- `GET /api/runs?limit=…&mode=…` — recent runs (summary).
+- `GET /api/runs/{id}` — full payload including the per-agent breakdown.
+- `GET /api/metrics/summary?last_n=…` — aggregates (avg cost, p95 latency,
+  tool failure rate, MoA vs baseline cost) used by the dashboard.
+
+The "Evaluation" tab in the frontend renders all of this, with a run
+history table, cost-per-run / cost-per-mode bar charts and an inline
+per-agent latency chart for any selected run.
 
 ## Quick start
 
@@ -176,6 +201,8 @@ The three MCP servers in `mcp_servers/` are reusable on their own — drop them 
 - [x] React frontend with ReactFlow agent graph + tool timeline
 - [x] MoA vs Single LLM comparison
 - [x] CLI demo runner
+- [x] Evaluation dashboard: cost / latency / tool-failure / source-coverage per run, persisted to SQLite
+- [ ] Source citations + trace-back to the tool output that produced each line
 - [ ] Scheduled daily briefing (cron + email/Slack)
 - [ ] Brief history & favourites
 - [ ] Deployment guide (Fly.io / Render)
