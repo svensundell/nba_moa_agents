@@ -8,7 +8,7 @@
 ![mcp](https://img.shields.io/badge/MCP-3_servers_·_11_tools-purple)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
-**Contents:** [Why](#why-this-project) · [Stack](#tech-stack) · [Architecture](#architecture) · [Modes](#four-demo-modes) · [Trade-offs](#engineering-trade-offs) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Structure](#project-structure)
+**Contents:** [Why](#why-this-project) · [Stack](#tech-stack) · [Case study](docs/case-study.md) · [Architecture](#architecture) · [Modes](#four-demo-modes) · [Trade-offs](#engineering-trade-offs) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Structure](#project-structure)
 
 ## Why this project?
 
@@ -27,6 +27,8 @@ The implementation treats that workflow as a real system: runs are measured, sou
 5. **Brief memory for Copilot** — each Daily Brief is chunked, embedded (OpenRouter), and stored in Postgres `briefs` + `chunks` (`pgvector` for similarity). NBA Copilot can call `search_brief_memory` to retrieve past storylines (e.g. “why is everyone talking about the Pacers this week?”) alongside live MCP tools.
 
 Planned next: scheduled briefs, public demo deploy. See [Roadmap](#roadmap).
+
+For a portfolio-style project narrative, see [`docs/case-study.md`](docs/case-study.md).
 
 ## Tech stack
 
@@ -351,6 +353,7 @@ nba_moa_agents/
 ├── .github/workflows/ci.yml     Ruff, mypy, pytest, frontend build
 └── docs/
     ├── architecture.md
+    ├── case-study.md          Portfolio narrative (problem → architecture → results)
     └── images/                README screenshots (daily-brief-*, copilot-*, compare-*)
 ```
 
