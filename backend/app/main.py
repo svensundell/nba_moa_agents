@@ -13,6 +13,7 @@ from app.api.routes import router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
 from app.eval.repository import configure_repository
+from app.memory import configure_memory
 from app.mcp.client import mcp_registry
 
 
@@ -31,10 +32,12 @@ async def lifespan(app: FastAPI):
     """
     settings = get_settings()
     repo = configure_repository(settings.resolved_eval_db_path)
+    memory = configure_memory(settings.resolved_memory_db_path)
     try:
         await repo.initialize()
+        await memory.initialize()
     except Exception as exc:  # pragma: no cover - depends on filesystem
-        logger.error(f"Eval repository initialisation failed: {exc}")
+        logger.error(f"Repository initialisation failed: {exc}")
         raise
 
     try:
@@ -42,12 +45,14 @@ async def lifespan(app: FastAPI):
     except Exception as exc:  # pragma: no cover - depends on subprocesses
         logger.error(f"MCP initialisation failed: {exc}")
         await repo.close()
+        await memory.close()
         raise
     try:
         yield
     finally:
         await mcp_registry.shutdown()
         await repo.close()
+        await memory.close()
 
 
 def create_app() -> FastAPI:
@@ -88,6 +93,9 @@ def create_app() -> FastAPI:
                 "/api/runs",
                 "/api/runs/{run_id}",
                 "/api/metrics/summary",
+                "/api/memory/briefs",
+                "/api/memory/search",
+                "/api/memory/reindex",
             ],
         }
 

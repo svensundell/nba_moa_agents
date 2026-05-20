@@ -18,6 +18,8 @@ from app.api.schemas import (
 from app.core.config import get_settings
 from app.eval.repository import get_repository
 from app.eval.schemas import DashboardSummary, RunSummary
+from app.memory import get_memory_service
+from app.memory.schemas import BriefSummary, MemorySearchRequest, MemorySearchResult
 from app.mcp.client import mcp_registry
 from app.moa.llm import AGENT_MODELS, MODEL_REGISTRY, model_id
 
@@ -128,6 +130,45 @@ async def metrics_summary(
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return await repo.summary(last_n=last_n, mode=mode)
+
+
+@router.get("/memory/briefs", response_model=list[BriefSummary])
+async def list_memory_briefs(
+    limit: int = Query(default=50, ge=1, le=200),
+) -> list[BriefSummary]:
+    """Indexed Daily Briefs available to NBA Copilot memory search."""
+    try:
+        memory = get_memory_service()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return await memory.list_briefs(limit=limit)
+
+
+@router.post("/memory/search", response_model=MemorySearchResult)
+async def search_memory(req: MemorySearchRequest) -> MemorySearchResult:
+    """Semantic search over archived Daily Brief chunks (debug / UI)."""
+    try:
+        memory = get_memory_service()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return await memory.search(req.query, days=req.days, limit=req.limit)
+
+
+@router.post("/memory/reindex")
+async def reindex_memory(
+    limit: int = Query(default=100, ge=1, le=500),
+) -> dict[str, int]:
+    """Backfill brief memory from persisted ``brief`` runs in the eval database."""
+    try:
+        memory = get_memory_service()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    if not memory.enabled:
+        raise HTTPException(
+            status_code=400,
+            detail="Memory requires MEMORY_ENABLED=true and OPENROUTER_API_KEY.",
+        )
+    return await memory.reindex_from_eval(limit=limit)
 
 
 @router.websocket("/ws/run")

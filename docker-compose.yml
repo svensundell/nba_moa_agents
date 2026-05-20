@@ -7,6 +7,7 @@ services:
     environment:
       ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
       EVAL_DB_PATH: /app/data/eval.db
+      MEMORY_DB_PATH: /app/data/memory.db
     # Direct API/docs on :8001 (avoids clashing with a local uvicorn on :8000).
     ports:
       - "127.0.0.1:8001:8000"

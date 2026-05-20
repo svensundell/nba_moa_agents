@@ -16,7 +16,9 @@ from langchain.agents import create_agent
 from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 from app.api.schemas import RunResult
+from app.core.config import get_settings
 from app.mcp.client import mcp_registry
+from app.memory.tool import build_memory_tool
 from app.eval import current_tracker
 from app.moa.agents.base import (
     record_streamed_llm_call,
@@ -35,6 +37,9 @@ Rules:
 - Do not rely on season-averages endpoints; they may be unavailable for this API plan.
 - Use ESPN headlines for news and injuries.
 - Use Reddit tools for sentiment/community signals.
+- Use ``search_brief_memory`` for trends, recurring storylines, or questions about
+  "this week" / "lately" that past Daily Briefs may cover. Combine with live tools
+  when the user needs current scores or breaking news.
 - If evidence is missing, say so clearly instead of guessing.
 - If season averages are unavailable, explicitly say they are unavailable due provider/API plan limits.
 - End with a concise markdown answer with optional bullet points.
@@ -175,7 +180,13 @@ def _filter_nba_copilot_tools() -> list[Any]:
         "nba_stats_player_season_averages",
         "nba_stats_player_stats_by_name",
     }
-    return [tool for tool in mcp_registry.all_tools if tool.name not in blocked]
+    tools: list[Any] = [
+        tool for tool in mcp_registry.all_tools if tool.name not in blocked
+    ]
+    settings = get_settings()
+    if settings.memory_enabled and settings.has_openrouter:
+        tools.append(build_memory_tool())
+    return tools
 
 
 def _build_input_messages(

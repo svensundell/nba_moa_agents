@@ -22,6 +22,7 @@ The implementation treats that workflow as a real system: runs are measured, sou
 2. **Source traceability** — each MCP call becomes a numbered `SourceCitation` (provider, tool, retrieval time, URL when available, payload excerpt). The **Daily Brief** editor receives a source index and can cite `[1]`, `[2]` inline; the UI links citations to the live tool timeline and a **Sources** bibliography. *(Semantic "click any phrase → tool output" and Copilot post-pass citations are on the [roadmap](#roadmap).)*
 3. **MoA + MCP** — 9 specialised agents on 3 layers across **5 model families** via OpenRouter; **three custom MCP servers, 11 tools**, strictly MCP-driven (no HTTP fallbacks). The servers are reusable in any MCP client (Claude Desktop, Cursor, etc.).
 4. **Hybrid orchestration** — `brief` / `compare` use a *deterministic* LangGraph MoA pipeline (repeatable daily recap, side-by-side baseline). **NBA Copilot** (`query`) uses a *dynamic* tool-using `create_agent` with multi-turn chat and WebSocket streaming of every tool decision.
+5. **Brief memory for Copilot** — each Daily Brief is chunked, embedded (OpenRouter), and stored in `data/memory.db`. NBA Copilot can call `search_brief_memory` to retrieve past storylines (e.g. “why is everyone talking about the Pacers this week?”) alongside live MCP tools. Reindex past briefs with `POST /api/memory/reindex`.
 
 **Design choices:**
 
@@ -32,7 +33,7 @@ The implementation treats that workflow as a real system: runs are measured, sou
 | MCP-only data layer | Explicit tool boundaries, auditable calls, portable servers. |
 | Metrics + citations in-app | Cost, failure modes, and provenance are part of the product, not an afterthought. |
 
-Planned next: scheduled briefs, brief history / RAG for Copilot, public demo deploy. See [Roadmap](#roadmap).
+Planned next: scheduled briefs, public demo deploy. See [Roadmap](#roadmap).
 
 ## Architecture
 
@@ -116,6 +117,9 @@ Three endpoints expose the history:
 - `GET /api/metrics/summary?last_n=…&mode=…` — aggregates (avg cost, p95 latency,
   tool failure rate, MoA vs baseline cost) used by the dashboard; optional `mode`
   filter matches `GET /api/runs`.
+- `GET /api/memory/briefs` — indexed Daily Briefs for Copilot memory.
+- `POST /api/memory/search` — semantic search over brief chunks (debug).
+- `POST /api/memory/reindex` — backfill memory from past `brief` runs in `eval.db`.
 
 The "Evaluation" tab in the frontend renders all of this, with a run
 history table, cost-per-run / cost-per-mode bar charts and an inline
@@ -144,6 +148,16 @@ chat messages today. It sees raw tool JSON inside its ReAct loop; citations are
 recorded in the tracker as tools finish, and the UI shows the full **Sources**
 section after the answer. Inline `[n]` in Copilot answers are best-effort only
 until a post-pass injects the index (roadmap).
+
+### Brief memory (NBA Copilot)
+
+After each **Daily Brief** run, the final markdown is chunked by section,
+embedded via OpenRouter (`MEMORY_EMBEDDING_MODEL`), and stored in
+`data/memory.db`. NBA Copilot exposes a `search_brief_memory` tool (last
+`MEMORY_DEFAULT_DAYS` days by default) so questions like *“Why is everyone
+talking about the Pacers this week?”* can combine **archived brief context**
+with **live MCP data**. Run `POST /api/memory/reindex` once to index briefs
+that were generated before this feature shipped.
 
 ## Quick start
 
@@ -238,6 +252,7 @@ nba_moa_agents/
 │   │   │   └── agents/          Per-agent logic + prompts (proposers / refiners / editor)
 │   │   ├── mcp/                 MCPRegistry: launches & caches the 3 MCP servers
 │   │   ├── eval/                RunTracker, SQLite repo, pricing (metrics + citations)
+│   │   ├── memory/              Brief chunking, embeddings, RAG for NBA Copilot
 │   │   └── core/                Config & logging
 │   ├── scripts/demo.py          CLI demo runner
 │   └── tests/                   Smoke tests (no LLM calls)
@@ -276,10 +291,11 @@ The three MCP servers in `mcp_servers/` are reusable on their own — drop them 
 - [x] Evaluation dashboard: cost / latency / tool-failure / source-coverage per run, persisted to SQLite
 - [x] Structured source citations (MCP → `source_citations`, Sources panel, timeline metadata)
 - [x] Daily Brief: editor receives numbered source index + inline `[n]` citations
+- [x] Brief memory: chunk + embed Daily Briefs; `search_brief_memory` tool for NBA Copilot
 - [ ] NBA Copilot: post-pass to inject source index so `[n]` in answers match the bibliography
 - [ ] Click arbitrary phrase → tool output (semantic trace-back, not only `[n]`)
 - [ ] Scheduled daily briefing (cron + email/Slack)
-- [ ] Brief history & favourites
+- [ ] Brief history UI (browse indexed briefs in the frontend)
 - [ ] Deployment guide (Fly.io / Render)
 
 ## License

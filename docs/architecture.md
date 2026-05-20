@@ -339,6 +339,48 @@ Implications:
   recovering the exact MCP JSON chunk without an `[n]` marker in the text.
 - **Copilot post-pass** — numbered index injected after tool calls complete.
 
+## Brief memory (NBA Copilot RAG)
+
+Past **Daily Brief** runs are indexed for semantic retrieval so NBA Copilot
+can answer trend questions (“why is everyone talking about the Pacers this
+week?”) without relying only on live MCP calls.
+
+```
+Daily Brief completes
+        │
+        ▼
+runner._index_brief_memory  ──►  MemoryService.index_brief
+        │                              │
+        │                              ├─ chunk_brief_markdown (by ## section)
+        │                              ├─ embed_texts (OpenRouter embeddings API)
+        │                              └─ MemoryRepository → data/memory.db
+        │
+NBA Copilot (query mode)
+        │
+        ├─ MCP tools (live data)
+        └─ search_brief_memory (LangChain StructuredTool)
+                 │
+                 ▼
+           cosine similarity + keyword fallback
+                 │
+                 ▼
+           formatted excerpts in tool result
+```
+
+| Piece | Location |
+|-------|----------|
+| Chunking | `app/memory/chunking.py` |
+| Embeddings | `app/memory/embeddings.py` (`openai/text-embedding-3-small` via OpenRouter) |
+| Storage | `app/memory/repository.py` — SQLite `briefs` + `chunks` tables |
+| Copilot tool | `app/memory/tool.py` — `search_brief_memory(query, days=14)` |
+| Auto-index | `app/api/runner.py` after each successful `brief` run |
+| Backfill | `POST /api/memory/reindex` — reads `brief` rows from `eval.db` |
+| Config | `MEMORY_*` env vars in `.env.example` |
+
+Temporal filter: the `days` argument on the tool (and `MEMORY_DEFAULT_DAYS`)
+limits chunks by brief `date`. Live scores and breaking news should still
+come from MCP tools; memory supplies narrative context from prior briefs.
+
 ## Brief output structure
 
 The `editor` agent uses an explicit markdown template so the daily brief is

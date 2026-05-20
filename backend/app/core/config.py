@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     # ``EVAL_DB_PATH`` for tests or CI.
     eval_db_path: str = Field(default="")
 
+    # Brief memory (RAG over past Daily Briefs for NBA Copilot).
+    memory_db_path: str = Field(default="")
+    memory_enabled: bool = Field(default=True)
+    memory_embedding_model: str = Field(default="openai/text-embedding-3-small")
+    memory_default_days: int = Field(default=14, ge=1, le=365)
+    memory_search_top_k: int = Field(default=6, ge=1, le=20)
+
     @property
     def origins(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
@@ -56,6 +63,13 @@ class Settings(BaseSettings):
         if self.eval_db_path:
             return Path(self.eval_db_path).expanduser().resolve()
         return PROJECT_ROOT / "data" / "eval.db"
+
+    @property
+    def resolved_memory_db_path(self) -> Path:
+        """Resolve the brief-memory DB path, falling back to ``<root>/data/memory.db``."""
+        if self.memory_db_path:
+            return Path(self.memory_db_path).expanduser().resolve()
+        return PROJECT_ROOT / "data" / "memory.db"
 
 
 @lru_cache

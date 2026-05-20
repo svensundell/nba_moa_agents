@@ -366,7 +366,7 @@ def record_streamed_tool_call(
         error=None if success else text[:200],
         started_at=started_at or datetime.now(),
     )
-    if success:
+    if success and tool_name != "search_brief_memory":
         tracker.record_mcp_citation(
             agent=agent,
             tool_name=tool_name,

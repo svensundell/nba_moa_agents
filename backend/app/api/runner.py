@@ -30,6 +30,7 @@ from app.eval.repository import get_repository
 from app.eval.schemas import RunMetrics
 from app.moa.citations import merge_run_citations
 from app.moa.graph import GRAPH
+from app.memory import get_memory_service
 from app.moa.open_query import run_open_query, stream_open_query_frames
 from app.moa.state import AgentEvent, AgentProposal, MoAState, initial_state
 
@@ -135,6 +136,30 @@ async def _persist_run(
         logger.error(f"Failed to persist run {metrics.run_id}: {exc}")
 
 
+async def _index_brief_memory(
+    *,
+    result: RunResult,
+    metrics: RunMetrics,
+    language: str,
+) -> None:
+    """Best-effort indexing of Daily Brief markdown for NBA Copilot RAG."""
+    if result.mode != "brief" or not result.final_brief.strip():
+        return
+    try:
+        memory = get_memory_service()
+        await memory.index_brief(
+            brief_id=metrics.run_id,
+            run_id=metrics.run_id,
+            date_value=result.date,
+            language=language,
+            markdown=result.final_brief,
+        )
+    except RuntimeError:
+        return
+    except Exception as exc:  # pragma: no cover
+        logger.warning(f"Brief memory indexing failed for {metrics.run_id}: {exc}")
+
+
 async def run_full(
     mode: Literal["brief", "query", "compare"],
     *,
@@ -170,6 +195,7 @@ async def run_full(
     result.metrics = metrics
     result = _attach_citations(result)
     await _persist_run(metrics=metrics, result=result, language=language)
+    await _index_brief_memory(result=result, metrics=metrics, language=language)
     return result
 
 
@@ -211,8 +237,9 @@ async def run_streaming(
                         }
                     yield frame
             if final_result is not None:
+                run_metrics = final_result.metrics or tracker.finalize()
                 await _persist_run(
-                    metrics=final_result.metrics or tracker.finalize(),
+                    metrics=run_metrics,
                     result=final_result,
                     language=language,
                 )
@@ -255,3 +282,4 @@ async def run_streaming(
             "result": result.model_dump(mode="json"),
         }
         await _persist_run(metrics=metrics, result=result, language=language)
+        await _index_brief_memory(result=result, metrics=metrics, language=language)
