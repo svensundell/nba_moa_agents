@@ -2,13 +2,14 @@
 
 > A **Mixture of Agents** system that produces a structured daily NBA briefing and includes **NBA Copilot** — a multi-turn, MCP-powered research chat — built with LangGraph, OpenRouter and the Model Context Protocol.
 
+[![CI](https://github.com/svensundell/nba_moa_agents/actions/workflows/ci.yml/badge.svg)](https://github.com/svensundell/nba_moa_agents/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.11+-blue)
 ![langgraph](https://img.shields.io/badge/langgraph-0.2-green)
 ![openrouter](https://img.shields.io/badge/openrouter-5_model_families-orange)
 ![mcp](https://img.shields.io/badge/MCP-3_servers_·_11_tools-purple)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
-**Contents:** [Why](#why-this-project) · [Stack](#tech-stack) · [Case study](docs/case-study.md) · [LLMOps](docs/llmops.md) · [Architecture](#architecture) · [Modes](#four-demo-modes) · [Trade-offs](#engineering-trade-offs) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Structure](#project-structure)
+**Contents:** [Why](#why-this-project) · [Stack](#tech-stack) · [Case study](docs/case-study.md) · [LLMOps](docs/llmops.md) · [Testing](docs/testing.md) · [Architecture](#architecture) · [Modes](#four-demo-modes) · [Trade-offs](#engineering-trade-offs) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Structure](#project-structure)
 
 ## Why this project?
 
@@ -29,7 +30,8 @@ The implementation treats that workflow as a real system: runs are measured, sou
 Planned next: scheduled briefs, public demo deploy. See [Roadmap](#roadmap).
 
 For a portfolio-style project narrative, see [`docs/case-study.md`](docs/case-study.md).  
-For evaluation / LLMOps detail, see [`docs/llmops.md`](docs/llmops.md).
+For evaluation / LLMOps detail, see [`docs/llmops.md`](docs/llmops.md).  
+For tests and CI, see [`docs/testing.md`](docs/testing.md).
 
 ## Tech stack
 
@@ -337,19 +339,24 @@ nba_moa_agents/
     ├── architecture.md
     ├── case-study.md          Portfolio narrative (problem → architecture → results)
     ├── llmops.md              Evaluation metrics, instrumentation, dashboard
+    ├── testing.md             Test matrix, CI pipeline, local commands
     └── images/                README screenshots (daily-brief-*, copilot-*, compare-*)
 ```
 
-### Quality gates
+### Testing and CI
+
+[![CI](https://github.com/svensundell/nba_moa_agents/actions/workflows/ci.yml/badge.svg)](https://github.com/svensundell/nba_moa_agents/actions/workflows/ci.yml)
+
+Every push/PR runs **Ruff**, **mypy**, **pytest** (smoke + Postgres/`pgvector` integration), and a **frontend production build**. No live LLM or MCP subprocess calls in CI — graph structure, eval/memory repos, and MCP helper logic are covered deterministically.
 
 ```bash
-make lint          # Ruff check + format check
-make typecheck     # Mypy (LangChain/MCP modules use overrides in backend/pyproject.toml)
-make test          # Backend pytest + frontend production build
-make test-integration   # Postgres tests (TEST_DATABASE_URL, DB nba_test)
+make lint               # Ruff check + format check
+make typecheck          # Mypy (LangChain/MCP overrides in backend/pyproject.toml)
+make test               # Backend pytest + frontend build (same as CI)
+make test-integration   # Postgres only (TEST_DATABASE_URL, DB nba_test)
 ```
 
-CI runs the same checks on every push/PR (`.github/workflows/ci.yml`).
+Details: [`docs/testing.md`](docs/testing.md).
 
 ## Plug the custom MCP servers into Claude Desktop / Cursor
 

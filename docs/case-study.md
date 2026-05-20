@@ -87,13 +87,26 @@ MCP gives explicit interfaces and better portability. It also makes failures vis
 
 Postgres + an in-app dashboard keeps the repo self-contained and demoable without another SaaS. The event model (generations, tools, cost, failures) maps 1:1 to what Langfuse or OpenTelemetry would ingest on a client engagement — see [`llmops.md`](llmops.md).
 
+## Testing and CI
+
+GitHub Actions runs on every change: **Ruff**, **mypy**, **pytest**, and a **frontend production build**. Integration tests use real Postgres with `pgvector` (same patterns as production), while smoke tests validate LangGraph topology and agent/model wiring without API keys.
+
+| Layer | How it is tested |
+|-------|------------------|
+| LangGraph MoA | Node set, `initial_state` per mode, compile smoke |
+| MCP servers | Unit tests on pure helpers (ESPN score shaping, injury filter, Reddit post trim) |
+| Eval / memory | Repository CRUD, `RunTracker` rollups, vector search contracts |
+| Frontend | `tsc` + Vite build in CI |
+
+Live LLM and MCP subprocess runs are left to local/demo validation — documented trade-off in [`testing.md`](testing.md).
+
+[![CI](https://github.com/svensundell/nba_moa_agents/actions/workflows/ci.yml/badge.svg)](https://github.com/svensundell/nba_moa_agents/actions/workflows/ci.yml)
+
 ## Reliability and quality engineering
 
 - FastAPI backend with typed schemas (Pydantic v2) and WebSocket streaming.
 - SQLAlchemy async + Alembic migrations for persistence lifecycle.
-- CI pipeline for lint/typecheck/tests/frontend build.
-- Makefile for reproducible local workflows (`dev`, `test`, `lint`, `typecheck`, `migrate`).
-- Tests cover graph structure, repositories, and MCP server helper behavior.
+- Makefile mirroring CI (`make test`, `lint`, `typecheck`, `migrate`).
 
 ## Results and deliverables
 
@@ -110,7 +123,7 @@ The project delivers:
 - **LLM integration**: model routing, tool grounding, prompt constraints, output shaping.
 - **RAG/memory**: chunking, embeddings, vector retrieval, temporal context reuse.
 - **LLMOps**: per-run cost/latency/tool metrics, failure rates, MoA vs Copilot comparison, persisted history + Evaluation UI ([`llmops.md`](llmops.md)).
-- **Backend engineering**: FastAPI, async Python, Postgres/pgvector, migration discipline.
+- **Backend engineering**: FastAPI, async Python, Postgres/pgvector, migration discipline, pytest + CI ([`testing.md`](testing.md)).
 - **Product engineering**: frontend traceability UX, live observability surfaces, explainability.
 
 ## What is intentionally not implemented yet
