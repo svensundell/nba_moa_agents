@@ -6,10 +6,10 @@ Topology::
                         │                                               │
         ┌──────┬──────┬─┴──────┬──────────┬─────────┐                  │
         ▼      ▼      ▼        ▼          ▼         ▼                  │
-     scores  news  stats  injuries   social    baseline (compare-only) │
+     scores  news  stats  injuries   social                            │
         └──────┴───┬──┴────────┴──────────┘                            │
-                   ▼                                                    ▼
-         ┌─────────┴─────────┐                                         END
+                   ▼
+         ┌─────────┴─────────┐
          ▼                   ▼
       analyst            narrative
          └────────┬──────────┘
@@ -17,7 +17,7 @@ Topology::
                 editor
 
 LangGraph runs nodes that share an incoming edge in parallel, so all five
-proposers (and the baseline in compare mode) execute concurrently. This is
+proposers execute concurrently. This is
 what gives the pipeline its real performance edge.
 """
 
@@ -30,7 +30,7 @@ from langgraph.graph import END, START, StateGraph
 
 from app.eval import current_tracker
 from app.moa.agents.base import event
-from app.moa.agents.editor import baseline_agent, editor_agent
+from app.moa.agents.editor import editor_agent
 from app.moa.agents.proposers import (
     injuries_agent,
     news_agent,
@@ -76,12 +76,9 @@ async def kickoff(state: MoAState) -> dict:
     }
 
 
-def _next_nodes_after_kickoff(state: MoAState) -> list[str]:
-    """Route baseline only in compare mode."""
-    proposers = ["scores", "news", "stats", "injuries", "social"]
-    if state.get("mode") == "compare":
-        return [*proposers, "baseline"]
-    return proposers
+def _next_nodes_after_kickoff(_state: MoAState) -> list[str]:
+    """Fan out to all layer-1 proposers after kickoff."""
+    return ["scores", "news", "stats", "injuries", "social"]
 
 
 def build_graph():
@@ -106,12 +103,10 @@ def build_graph():
 
     # Layer 3
     g.add_node("editor", _track("editor", editor_agent))
-    g.add_node("baseline", _track("baseline", baseline_agent))
 
     # Edges
     g.add_edge(START, "kickoff")
 
-    # Fan-out from kickoff. Baseline runs only in compare mode.
     g.add_conditional_edges("kickoff", _next_nodes_after_kickoff)
 
     # Layer 1 -> Layer 2 (explicit barriers: refiners wait for all proposers)
@@ -122,8 +117,6 @@ def build_graph():
     # Layer 2 -> Layer 3 (barrier: wait for BOTH refiners)
     g.add_edge(["analyst", "narrative"], "editor")
 
-    # Baseline stays independent; it should never trigger editor.
-    g.add_edge("baseline", END)
     g.add_edge("editor", END)
 
     return g.compile()

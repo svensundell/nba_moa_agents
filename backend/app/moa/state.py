@@ -81,7 +81,7 @@ class MoAState(TypedDict, total=False):
     # output of layer 3
     final_brief: Annotated[str, _take_last]
 
-    # baseline for comparison mode
+    # NBA Copilot answer when mode == "compare" (stored for API/DB compat)
     single_llm_answer: Annotated[str, _take_last]
 
     # streaming channel (UI consumes this)

@@ -51,7 +51,7 @@ async def _main() -> int:
     print(result.final_brief or "(empty)")
 
     if mode == "compare":
-        print("\n\n# Single-LLM baseline\n")
+        print("\n\n# NBA Copilot (compare baseline)\n")
         print(result.single_llm_answer or "(empty)")
 
     print("\n\n# Per-agent proposals")

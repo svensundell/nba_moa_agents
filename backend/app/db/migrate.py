@@ -5,6 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 
 from alembic.config import Config
+from alembic.runtime.environment import EnvironmentContext
+from alembic.script import ScriptDirectory
 from loguru import logger
 from sqlalchemy import pool
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -27,13 +29,21 @@ def _alembic_config() -> Config:
 
 def _run_migrations(connection) -> None:  # type: ignore[no-untyped-def]
     cfg = _alembic_config()
-    context.configure(
-        connection=connection,
-        target_metadata=Base.metadata,
-        config=cfg,
-    )
-    with context.begin_transaction():
-        context.run_migrations()
+    script = ScriptDirectory.from_config(cfg)
+
+    def upgrade_to_head(rev, _context):  # type: ignore[no-untyped-def]
+        return script._upgrade_revs("head", rev)
+
+    with EnvironmentContext(
+        cfg,
+        script,
+        fn=upgrade_to_head,
+        as_sql=False,
+        destination_rev="head",
+    ):
+        context.configure(connection=connection, target_metadata=Base.metadata)
+        with context.begin_transaction():
+            context.run_migrations()
 
 
 async def upgrade_head() -> None:

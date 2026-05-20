@@ -34,6 +34,46 @@ from app.moa.graph import GRAPH
 from app.moa.open_query import run_open_query, stream_open_query_frames
 from app.moa.state import AgentEvent, AgentProposal, MoAState, initial_state
 
+_COMPARE_DEFAULT_QUERY = "Give me a daily NBA briefing for last night."
+
+
+def _compare_copilot_query(query: str) -> str:
+    stripped = query.strip()
+    return stripped if stripped else _COMPARE_DEFAULT_QUERY
+
+
+async def _run_copilot_for_compare(
+    *,
+    query: str,
+    date: str | None,
+    language: Literal["en", "fr"],
+) -> RunResult:
+    """NBA Copilot baseline for compare mode (tool-using agent, all MCP tools)."""
+    tracker = current_tracker()
+    if tracker is not None:
+        async with tracker.time_agent("nba_copilot"):
+            return await run_open_query(
+                query=_compare_copilot_query(query),
+                date=date,
+                language=language,
+            )
+    return await run_open_query(
+        query=_compare_copilot_query(query),
+        date=date,
+        language=language,
+    )
+
+
+def _merge_compare_results(
+    moa_state: MoAState,
+    copilot: RunResult,
+) -> MoAState:
+    merged: MoAState = dict(moa_state)  # type: ignore[assignment]
+    merged["single_llm_answer"] = copilot.final_brief
+    moa_events = list(merged.get("events", []) or [])
+    merged["events"] = moa_events + list(copilot.events)
+    return merged
+
 
 async def _stream_graph(state: MoAState) -> AsyncIterator[tuple[str, dict]]:
     """Iterate over LangGraph node updates as they arrive.
@@ -181,7 +221,14 @@ async def run_full(
             )
         else:
             state: MoAState = initial_state(mode, query=query, date=date, language=language)
-            final_state = await GRAPH.ainvoke(state)
+            if mode == "compare":
+                final_state, copilot = await asyncio.gather(
+                    GRAPH.ainvoke(state),
+                    _run_copilot_for_compare(query=query, date=date, language=language),
+                )
+                final_state = _merge_compare_results(final_state, copilot)
+            else:
+                final_state = await GRAPH.ainvoke(state)
             logger.info(
                 f"Pipeline done in {(datetime.now() - started_at).total_seconds():.1f}s "
                 f"(mode={mode}, proposals={len(final_state.get('proposals', []))})"
@@ -250,6 +297,12 @@ async def run_streaming(
 
         accumulated: MoAState = dict(state)  # type: ignore[assignment]
 
+        copilot_task: asyncio.Task[RunResult] | None = None
+        if mode == "compare":
+            copilot_task = asyncio.create_task(
+                _run_copilot_for_compare(query=query, date=date, language=language)
+            )
+
         async for node_name, update in _stream_graph(state):
             for ev in update.get("events", []) or []:
                 if isinstance(ev, AgentEvent):
@@ -266,6 +319,15 @@ async def run_streaming(
 
             yield {"kind": "node_done", "node": node_name}
             await asyncio.sleep(0)
+
+        if copilot_task is not None:
+            copilot = await copilot_task
+            for ev in copilot.events:
+                if isinstance(ev, AgentEvent):
+                    yield {"kind": "event", "event": ev.model_dump(mode="json")}
+                else:
+                    yield {"kind": "event", "event": ev}
+            accumulated = _merge_compare_results(accumulated, copilot)
 
         _record_sources(tracker, accumulated)
         metrics = tracker.finalize()

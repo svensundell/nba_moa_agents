@@ -88,7 +88,7 @@ class RunMetrics(BaseModel):
     agents: list[AgentMetrics] = Field(default_factory=list)
     tool_calls: list[ToolCallMetric] = Field(default_factory=list)
 
-    # For compare mode only: the cost split between the MoA editor pipeline
+    # For compare mode only: MoA pipeline vs NBA Copilot (baseline_cost_usd)
     # and the single-LLM baseline, so the dashboard can show the ratio.
     moa_cost_usd: float = 0.0
     baseline_cost_usd: float = 0.0

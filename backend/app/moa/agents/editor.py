@@ -8,7 +8,7 @@ Receives:
 Outputs:
 - A polished markdown brief if mode=="brief"
 - A focused answer if mode=="query"
-- A briefing-style answer if mode=="compare" (single-LLM baseline runs in parallel)
+- A briefing-style answer for brief/compare (NBA Copilot runs in parallel for compare)
 """
 
 from __future__ import annotations
@@ -129,27 +129,3 @@ async def editor_agent(state: MoAState) -> dict:
         "events": [event("editor", "aggregator", "done", content="brief ready", model=model)],
     }
 
-
-# ─── Single-LLM baseline (for the comparison mode) ───────────────────────────
-
-
-BASELINE_SYSTEM = """You are an NBA expert. Answer the user with the best
-information you have, in the same markdown style as a daily briefing if it's
-a generic 'tell me about today' request, otherwise as a focused answer.
-Do not pretend to have data you don't have.
-"""
-
-
-async def baseline_agent(state: MoAState) -> dict:
-    """Single-shot single-model answer used by the 'compare' mode."""
-    if state.get("mode") != "compare":
-        return {"single_llm_answer": ""}
-    language = state.get("language", "en")
-    query = state.get("query") or "Give me a daily NBA briefing."
-    system = f"{BASELINE_SYSTEM}\n\n{_language_instruction(language)}"
-    answer = await call_llm("single_llm_baseline", system=system, user=query)
-    model = model_id(AGENT_MODELS.get("single_llm_baseline", "balanced"))
-    return {
-        "single_llm_answer": answer,
-        "events": [event("baseline", "system", "done", content="baseline ready", model=model)],
-    }

@@ -21,8 +21,8 @@
                    │                                       │
    ┌────┬────┬─────┴────┬──────────┬─────────┬─────────────┤
    ▼    ▼    ▼          ▼          ▼         ▼             │
- scores news stats   injuries   social   baseline (compare-only)
-  L1   L1   L1*        L1         L1         └──── END ────┘
+ scores news stats   injuries   social
+  L1   L1   L1*        L1         L1
    └────┴───┬┴──────────┴──────────┘
             ▼ (barrier: wait for all proposers)
       ┌─────┴──────┐
@@ -71,12 +71,9 @@ The aggregator (`editor`) is the final synthesiser: pure LLM, no tools, but
 with a strict 7-section markdown template (see "Brief output structure"
 below). Lives in `app/moa/agents/editor.py`.
 
-The `baseline` node is special: a single-LLM control that runs only when
-`mode=="compare"` and reaches `END` directly without going through the
-refiners or the editor.
-
-**NBA Copilot** (`query` mode) is its own beast — it doesn't go through this
-graph at all. See "Hybrid orchestration".
+**NBA Copilot** (`query` mode, and the compare baseline) does not use this
+graph. Compare mode runs `GRAPH.ainvoke` (MoA brief) and `run_open_query`
+(NBA Copilot) in parallel via `app/api/runner.py`. See "Hybrid orchestration".
 
 ## Model lineup
 
@@ -89,7 +86,7 @@ multiplexes 5 different model families:
 | `fast`       | `google/gemini-2.5-flash`                      | `scores`, `news`, `injuries` |
 | `reasoner`   | `qwen/qwen3.6-35b-a3b`                         | `stats`, `analyst` |
 | `synthesis`  | `deepseek/deepseek-chat-v3.1`                  | `narrative` |
-| `balanced`   | `deepseek/deepseek-chat-v3.1`                  | `editor`, `baseline` |
+| `balanced`   | `deepseek/deepseek-chat-v3.1`                  | `editor` |
 | `budget`     | `mistralai/mistral-small-24b-instruct-2501`    | `social` |
 | `open_query` | `deepseek/deepseek-v4-pro`                     | NBA Copilot tool-using agent |
 
@@ -199,22 +196,22 @@ Frame schema:
 
 ## Comparing modes
 
-The `compare` mode runs the **full MoA** alongside a **single-model
-baseline** (`deepseek/deepseek-chat-v3.1` answering directly). Both run in
-parallel inside the same graph: `kickoff` fans out to the proposers *and* to
-the `baseline` node, the proposers feed the refiners and the editor, and the
-baseline goes straight to `END`. The UI shows them side by side. This is the
-highest-leverage demo: it exposes when MoA actually adds value vs. just
-costing more tokens.
+The `compare` mode runs the **full MoA brief pipeline** (`GRAPH.ainvoke`)
+alongside **NBA Copilot** (`run_open_query` — one tool-using agent with all
+11 MCP tools). Both start in parallel from `app/api/runner.py`; the MoA
+answer is `final_brief`, the Copilot answer is stored in
+`single_llm_answer` for API/DB compatibility. The Evaluation dashboard splits
+`moa_cost_usd` vs `baseline_cost_usd` (Copilot agent row). The UI shows the
+two markdown columns side by side.
 
 ## Hybrid orchestration
 
 The project deliberately uses *two* orchestration patterns:
 
-- **`brief` and `compare`** use the deterministic MoA LangGraph (great for
-  repeatable daily recaps where you want each section to come from a
-  dedicated specialist).
-- **`query`** powers NBA Copilot using a tool-using LangChain
+- **`brief`** uses the deterministic MoA LangGraph (repeatable daily recap).
+- **`compare`** runs that same graph in parallel with NBA Copilot on the
+  same prompt (specialist pipeline vs one adaptive agent).
+- **`query`** powers NBA Copilot chat using a tool-using LangChain
   agent (`create_agent`) with the full MCP toolset minus a small blocklist
   for endpoints that 401 on the free balldontlie plan
   (`nba_stats_player_season_averages`, `nba_stats_player_stats_by_name`).

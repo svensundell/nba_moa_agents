@@ -101,8 +101,6 @@ AGENT_MODELS: dict[str, str] = {
     "narrative": "synthesis",
     # Layer 3 — Aggregator
     "editor": "balanced",
-    # Comparison baseline
-    "single_llm_baseline": "balanced",
-    # NBA Copilot (query mode)
+    # NBA Copilot (query + compare baseline)
     "nba_copilot": "open_query",
 }

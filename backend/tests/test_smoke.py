@@ -40,7 +40,6 @@ def test_graph_nodes_present() -> None:
         "analyst",
         "narrative",
         "editor",
-        "baseline",
     }
     nodes = set(GRAPH.get_graph().nodes.keys())
     missing = expected - nodes

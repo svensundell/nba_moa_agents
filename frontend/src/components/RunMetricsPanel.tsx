@@ -59,9 +59,9 @@ const COPY: Record<LanguageCode, T> = {
     sources: "Sources",
     estimatedNote:
       "Some model prices are estimates — actual cost may differ slightly.",
-    moaVsBaseline: "MoA vs single-agent cost",
+    moaVsBaseline: "MoA vs NBA Copilot cost",
     moaPipeline: "MoA pipeline",
-    baselineLlm: "Single agent",
+    baselineLlm: "NBA Copilot",
     noSources: "No sources reported by the agents.",
   },
   fr: {
@@ -90,9 +90,9 @@ const COPY: Record<LanguageCode, T> = {
     sources: "Sources",
     estimatedNote:
       "Certains prix de modèles sont estimés — le coût réel peut légèrement différer.",
-    moaVsBaseline: "Coût MoA vs agent unique",
+    moaVsBaseline: "Coût MoA vs NBA Copilot",
     moaPipeline: "Pipeline MoA",
-    baselineLlm: "Agent unique",
+    baselineLlm: "NBA Copilot",
     noSources: "Aucune source remontée par les agents.",
   },
 };

@@ -100,7 +100,7 @@ def test_tracker_records_tool_failures() -> None:
     assert metrics.tool_calls[1].error == "timeout"
 
 
-def test_tracker_splits_moa_and_baseline_costs_in_compare_mode() -> None:
+def test_tracker_splits_moa_and_copilot_costs_in_compare_mode() -> None:
     t = RunTracker(mode="compare")
     t.record_llm_call(
         agent="editor",
@@ -110,8 +110,8 @@ def test_tracker_splits_moa_and_baseline_costs_in_compare_mode() -> None:
         latency_ms=1_000,
     )
     t.record_llm_call(
-        agent="single_llm_baseline",
-        model_id="deepseek/deepseek-chat-v3.1",
+        agent="nba_copilot",
+        model_id="deepseek/deepseek-v4-pro",
         input_tokens=2_000,
         output_tokens=1_000,
         latency_ms=800,
@@ -119,7 +119,6 @@ def test_tracker_splits_moa_and_baseline_costs_in_compare_mode() -> None:
     metrics = t.finalize()
     assert metrics.moa_cost_usd > 0
     assert metrics.baseline_cost_usd > 0
-    # MoA's editor used 10x more prompt tokens, so its cost must dominate.
     assert metrics.moa_cost_usd > metrics.baseline_cost_usd
 
 

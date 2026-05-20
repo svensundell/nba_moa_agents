@@ -249,8 +249,8 @@ class RunTracker:
             llm_calls += row.llm_calls
             tool_calls += row.tool_calls
             tool_failures += row.tool_failures
-            # Compare mode: split MoA pipeline cost vs single-LLM baseline.
-            if row.agent in {"single_llm_baseline", "baseline"}:
+            # Compare mode: split MoA pipeline cost vs NBA Copilot.
+            if row.agent in {"nba_copilot", "single_llm_baseline", "baseline"}:
                 baseline_cost += row.cost_usd
             else:
                 moa_cost += row.cost_usd

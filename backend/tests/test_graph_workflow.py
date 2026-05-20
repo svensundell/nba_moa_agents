@@ -15,11 +15,13 @@ def test_initial_state_mode(mode: str) -> None:
     assert state["events"] == []
 
 
-def test_compare_mode_includes_baseline_node() -> None:
+def test_compare_mode_uses_same_graph_as_brief() -> None:
     from app.moa.graph import GRAPH
 
     nodes = set(GRAPH.get_graph().nodes.keys())
-    assert "baseline" in nodes
+    assert "baseline" not in nodes
+    for proposer in ("scores", "news", "stats", "injuries", "social"):
+        assert proposer in nodes
 
 
 def test_brief_graph_edges_from_kickoff() -> None:

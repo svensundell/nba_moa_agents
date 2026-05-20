@@ -8,6 +8,8 @@
 ![mcp](https://img.shields.io/badge/MCP-3_servers_·_11_tools-purple)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
+**Contents:** [Why](#why-this-project) · [Stack](#tech-stack) · [Architecture](#architecture) · [Modes](#four-demo-modes) · [Trade-offs](#engineering-trade-offs) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Structure](#project-structure)
+
 ## Why this project?
 
 Most "Mixture of Agents" demos are abstract chat playgrounds. This one solves a concrete problem:
@@ -21,19 +23,39 @@ The implementation treats that workflow as a real system: runs are measured, sou
 1. **Observable runs** — every invocation is tracked (`RunTracker` → Postgres `runs`/`agent_metrics`/`tool_calls`): cost per run and per agent, token usage, LLM/MCP latency, tool failure rate, source coverage, wall-clock per graph node. The **Evaluation** tab charts history, filters by mode, and compares MoA vs single-LLM cost on `compare` runs.
 2. **Source traceability** — each MCP call becomes a numbered `SourceCitation` (provider, tool, retrieval time, URL when available, payload excerpt). The **Daily Brief** editor receives a source index and can cite `[1]`, `[2]` inline; the UI links citations to the live tool timeline and a **Sources** bibliography. *(Semantic "click any phrase → tool output" and Copilot post-pass citations are on the [roadmap](#roadmap).)*
 3. **MoA + MCP** — 9 specialised agents on 3 layers across **5 model families** via OpenRouter; **three custom MCP servers, 11 tools**, strictly MCP-driven (no HTTP fallbacks). The servers are reusable in any MCP client (Claude Desktop, Cursor, etc.).
-4. **Hybrid orchestration** — `brief` / `compare` use a *deterministic* LangGraph MoA pipeline (repeatable daily recap, side-by-side baseline). **NBA Copilot** (`query`) uses a *dynamic* tool-using `create_agent` with multi-turn chat and WebSocket streaming of every tool decision.
+4. **Hybrid orchestration** — `brief` / `compare` use a *deterministic* LangGraph MoA pipeline (repeatable daily recap). **NBA Copilot** (`query`) uses a *dynamic* tool-using `create_agent` with multi-turn chat. **Compare** runs both in parallel (MoA brief vs Copilot on the same prompt).
 5. **Brief memory for Copilot** — each Daily Brief is chunked, embedded (OpenRouter), and stored in Postgres `briefs` + `chunks` (`pgvector` for similarity). NBA Copilot can call `search_brief_memory` to retrieve past storylines (e.g. “why is everyone talking about the Pacers this week?”) alongside live MCP tools.
 
-**Design choices:**
-
-| Choice | Why |
-|--------|-----|
-| MoA for the Daily Brief | Parallel specialists + refinement produce structured, sectioned output more reliably than a single prompt. |
-| Tool-using agent for Copilot | Open-ended questions need dynamic tool planning, not a fixed graph. |
-| MCP-only data layer | Explicit tool boundaries, auditable calls, portable servers. |
-| Metrics + citations in-app | Cost, failure modes, and provenance are part of the product, not an afterthought. |
-
 Planned next: scheduled briefs, public demo deploy. See [Roadmap](#roadmap).
+
+## Tech stack
+
+| Layer | Choices |
+|-------|---------|
+| **Orchestration** | LangGraph (MoA `brief` / `compare`), LangChain `create_agent` (NBA Copilot) |
+| **Models** | OpenRouter — 5 families (Gemini Flash, Qwen, Mistral, DeepSeek, …) with per-agent routing |
+| **Data** | 3 custom MCP servers (stdio) — ESPN, balldontlie, Reddit; no direct HTTP in agents |
+| **API** | FastAPI, WebSockets (`/api/ws/run`), Pydantic v2 |
+| **Persistence** | PostgreSQL 16 + `pgvector`, SQLAlchemy async, Alembic |
+| **Observability** | `RunTracker` → `runs` / `agent_metrics` / `tool_calls` + in-app Evaluation dashboard |
+| **Memory** | Section chunking, OpenRouter embeddings, cosine search + keyword fallback |
+| **Frontend** | React 18, Vite, TypeScript, Tailwind, React Flow (agent graph + MCP timeline) |
+| **Ops** | Docker Compose, Makefile, GitHub Actions (Ruff, mypy, pytest, frontend build) |
+
+## Engineering trade-offs
+
+| Topic | Choice | Why |
+|-------|--------|-----|
+| **Daily Brief orchestration** | Deterministic LangGraph MoA | Repeatable sections, parallel specialists, comparable runs for eval — better than one-shot prompting for a fixed recap format. |
+| **NBA Copilot** | Dynamic tool-using agent | Open-ended questions need adaptive tool planning; a fixed graph would be brittle. |
+| **Data boundary** | MCP-only (no HTTP fallbacks in agents) | Auditable tool calls, portable servers (Claude Desktop, Cursor), clear failure surface when a provider is down. |
+| **Model sizing** | Smaller/faster models on L1 proposers; larger models on refiners + editor | Most cost is in breadth (5 parallel proposers); synthesis needs stronger reasoning, not the other way around. |
+| **`stats` proposer** | Nested tool-using agent (cap ~6 calls) | Box scores need multi-step retrieval; a single hard-coded tool chain would miss edge cases. |
+| **Hallucination control** | MCP-grounded bullets + `analyst` refiner + numbered citations in the editor | No silver bullet — combination of retrieval, cross-check, and mandatory source index for the final brief. |
+| **Tool failures** | Recorded in metrics; agents emit explicit errors; no silent fallback to scraped HTML | Fails visibly in the UI and in the failure-rate gauge — easier to debug than wrong data. |
+| **Cost visibility** | Per-agent token + USD estimates in Postgres | Tunes model routing and tool caps with data, not guesswork. |
+| **Observability** | Custom eval store + live WebSocket trace | Full control for this repo; standard LLMOps tools (Langfuse, Phoenix) are a good fit for multi-project work — see roadmap. |
+| **Brief memory** | Temporal RAG over past briefs (`pgvector`) + live MCP tools | Copilot answers “this week” storylines from archives while still pulling fresh scores/headlines when needed. |
 
 ## Architecture
 
@@ -42,8 +64,8 @@ Planned next: scheduled briefs, public demo deploy. See [Roadmap](#roadmap).
                    │                         │
    ┌────┬────┬─────┴────┬──────────┬─────────┴──────────┐
    ▼    ▼    ▼          ▼          ▼                    ▼
- scores news stats   injuries   social         baseline (compare-only)
-   L1   L1  L1*        L1         L1                    └─ END
+ scores news stats   injuries   social
+   L1   L1  L1*        L1         L1
     └────┴───┬┴──────────┴──────────┘
              ▼
        ┌─────┴─────┐
@@ -73,8 +95,7 @@ LangGraph executes nodes that share an incoming edge in **parallel**, so layer-1
 | `analyst`   | refiner     | `qwen/qwen3.6-35b-a3b`                        | (no tool — fact-checks the proposals) |
 | `narrative` | refiner     | `deepseek/deepseek-chat-v3.1`                 | (no tool — finds storylines) |
 | `editor`    | aggregator  | `deepseek/deepseek-chat-v3.1`                 | (no tool — composes the final brief) |
-| `baseline`  | compare-only| `deepseek/deepseek-chat-v3.1`                 | (no tool — single-LLM control) |
-| `nba_copilot` | NBA Copilot | `deepseek/deepseek-v4-pro`      | **all 11 MCP tools** (autonomous tool selection) |
+| `nba_copilot` | NBA Copilot / compare baseline | `deepseek/deepseek-v4-pro` | **all 11 MCP tools** (autonomous tool selection) |
 
 \* `stats` is a tool-using agent: it plans up to ~6 tool calls per run to ground its bullets in **exact statlines** lifted from ESPN's boxscore data.
 
@@ -94,7 +115,7 @@ All three are launched as **stdio subprocesses** by `langchain_mcp_adapters.Mult
 |-----------------------|------------------------|--------------|
 | **Daily Brief**       | Deterministic LangGraph MoA | One click → a structured 7-section briefing for last night (Quick Hits / Box Score Recap / Standout Statlines / Trades & News / Injuries Watch / Storyline / Fan Pulse). |
 | **NBA Copilot** | Dynamic LangChain `create_agent` | Multi-turn NBA chat with tool-using reasoning. The agent decides which MCP tools to call from conversation context, and tool decisions stream live to the UI. |
-| **MoA vs Single LLM** | LangGraph MoA + parallel single-LLM baseline | Side-by-side comparison showing where the MoA pattern adds value (and where it doesn't). |
+| **MoA vs NBA Copilot** | LangGraph MoA + parallel NBA Copilot (`open_query`) | Same prompt, side by side: fixed specialist pipeline vs one tool-using agent with all MCP tools. |
 | **Evaluation Dashboard** | Persisted run metrics (Postgres) | Cost (USD), token usage, per-agent latency, MCP tool failure rate and source coverage for every run. MoA vs single-LLM cost ratio is charted for `compare` runs. |
 
 ### Evaluation & observability
@@ -115,7 +136,7 @@ Three endpoints expose the history:
 - `GET /api/runs?limit=…&mode=…` — recent runs (summary).
 - `GET /api/runs/{id}` — full payload including the per-agent breakdown.
 - `GET /api/metrics/summary?last_n=…&mode=…` — aggregates (avg cost, p95 latency,
-  tool failure rate, MoA vs baseline cost) used by the dashboard; optional `mode`
+  tool failure rate, MoA vs Copilot cost) used by the dashboard; optional `mode`
   filter matches `GET /api/runs`.
 - `GET /api/memory/briefs` — indexed Daily Briefs for Copilot memory.
 - `POST /api/memory/search` — semantic search over brief chunks (debug).
@@ -156,6 +177,54 @@ embedded via OpenRouter (`MEMORY_EMBEDDING_MODEL`), and stored in Postgres
 `MEMORY_DEFAULT_DAYS` days by default) so questions like *“Why is everyone
 talking about the Pacers this week?”* can combine **archived brief context**
 with **live MCP data**. New briefs are indexed automatically after each successful Daily Brief run.
+
+## Screenshots
+
+Capture the app locally (`make dev` + `make dev-frontend`), then add PNGs under [`docs/images/`](docs/images/) and they render here:
+
+### Daily Brief
+
+| Agent graph, MCP timeline & live trace |
+|--------------------------------------|
+| ![Daily Brief — agent graph and trace](docs/images/daily-brief-graph.png) |
+
+| Brief output (scores, news, stats) | Brief output (narrative & sources) |
+|------------------------------------|----------------------------------|
+| ![Daily Brief — output top](docs/images/daily-brief-output-top.png) | ![Daily Brief — output and sources](docs/images/daily-brief-output-sources.png) |
+
+| Evaluation dashboard |
+|----------------------|
+| ![Daily Brief — evaluation](docs/images/daily-brief-evaluation.png) |
+
+### NBA Copilot
+
+Multi-turn chat with MCP tools and brief memory (`search_brief_memory`). Each run is recorded in the same **Evaluation** store as Daily Brief (cost, latency, tool calls, sources).
+
+| Chat & streamed answer |
+|------------------------|
+| ![NBA Copilot — chat](docs/images/copilot-chat.png) |
+
+| MCP timeline, live trace & sources |
+|----------------------------------|
+| ![NBA Copilot — trace and sources](docs/images/copilot-trace-sources.png) |
+
+| Evaluation dashboard (Brief + Copilot runs) |
+|---------------------------------------------|
+| ![NBA Copilot — evaluation](docs/images/copilot-evaluation.png) |
+
+### MoA vs NBA Copilot
+
+Same prompt, two pipelines in parallel: **Daily Brief MoA** (deterministic LangGraph) vs **NBA Copilot** (tool-using agent, all MCP tools). Costs are split in the Evaluation tab (`moa_cost_usd` vs `baseline_cost_usd`).
+
+| Side-by-side answers |
+|--------------------|
+| ![MoA vs NBA Copilot — side by side](docs/images/compare-side-by-side.png) |
+
+| Evaluation dashboard (Compare runs) |
+|-------------------------------------|
+| ![MoA vs NBA Copilot — evaluation](docs/images/compare-evaluation.png) |
+
+**Demo video** — TODO 
 
 ## Quick start
 
@@ -280,7 +349,9 @@ nba_moa_agents/
 ├── docker-compose.yml
 ├── Makefile                     make dev | test | lint | migrate | docker-up
 ├── .github/workflows/ci.yml     Ruff, mypy, pytest, frontend build
-└── docs/architecture.md
+└── docs/
+    ├── architecture.md
+    └── images/                README screenshots (daily-brief-*, copilot-*, compare-*)
 ```
 
 ### Quality gates
@@ -312,7 +383,7 @@ The three MCP servers in `mcp_servers/` are reusable on their own — drop them 
 - [x] Hybrid orchestration: deterministic MoA for `brief`, dynamic multi-turn tool-using agent for NBA Copilot
 - [x] FastAPI + WebSocket streaming with live MCP tool timeline
 - [x] React frontend with ReactFlow agent graph + tool timeline
-- [x] MoA vs Single LLM comparison
+- [x] MoA vs NBA Copilot comparison
 - [x] CLI demo runner
 - [x] Evaluation dashboard: cost / latency / tool-failure / source-coverage per run, persisted to Postgres
 - [x] Structured source citations (MCP → `source_citations`, Sources panel, timeline metadata)

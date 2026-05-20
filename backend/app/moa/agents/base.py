@@ -230,7 +230,7 @@ def _layer_for(agent: str) -> str:
         return "proposer"
     if agent in {"analyst", "narrative"}:
         return "refiner"
-    if agent in {"editor", "baseline"}:
+    if agent == "editor":
         return "aggregator"
     return "system"
 
