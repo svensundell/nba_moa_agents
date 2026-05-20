@@ -12,8 +12,6 @@ failure messages obvious in CI.
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pytest
 
 from app.eval.pricing import DEFAULT_PRICE, PRICES, cost_usd, price_for_model
@@ -159,14 +157,14 @@ def test_use_tracker_binds_and_restores_context() -> None:
 # ─── Repository round-trip ──────────────────────────────────────────────────
 
 
-async def _make_repo(tmp_path: Path) -> EvalRepository:
-    repo = EvalRepository(tmp_path / "eval.db")
+async def _make_repo(pg_session_factory) -> EvalRepository:
+    repo = EvalRepository(pg_session_factory)
     await repo.initialize()
     return repo
 
 
-async def test_repository_round_trip(tmp_path: Path) -> None:
-    repo = await _make_repo(tmp_path)
+async def test_repository_round_trip(pg_session_factory) -> None:
+    repo = await _make_repo(pg_session_factory)
     try:
         t = RunTracker(mode="brief")
         t.record_llm_call(
@@ -216,8 +214,8 @@ async def test_repository_round_trip(tmp_path: Path) -> None:
         await repo.close()
 
 
-async def test_repository_filters_by_mode(tmp_path: Path) -> None:
-    repo = await _make_repo(tmp_path)
+async def test_repository_filters_by_mode(pg_session_factory) -> None:
+    repo = await _make_repo(pg_session_factory)
     try:
         for mode in ("brief", "query", "compare", "brief"):
             t = RunTracker(mode=mode)  # type: ignore[arg-type]
@@ -265,8 +263,8 @@ def test_sources_from_tool_output() -> None:
     assert "https://www.espn.com/nba/story" in sources
 
 
-async def test_repository_summary_handles_empty_db(tmp_path: Path) -> None:
-    repo = await _make_repo(tmp_path)
+async def test_repository_summary_handles_empty_db(pg_session_factory) -> None:
+    repo = await _make_repo(pg_session_factory)
     try:
         summary = await repo.summary(last_n=10)
         assert summary.total_runs == 0

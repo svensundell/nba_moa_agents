@@ -353,7 +353,7 @@ runner._index_brief_memory  ──►  MemoryService.index_brief
         │                              │
         │                              ├─ chunk_brief_markdown (by ## section)
         │                              ├─ embed_texts (OpenRouter embeddings API)
-        │                              └─ MemoryRepository → data/memory.db
+        │                              └─ MemoryRepository → Postgres + pgvector
         │
 NBA Copilot (query mode)
         │
@@ -371,11 +371,12 @@ NBA Copilot (query mode)
 |-------|----------|
 | Chunking | `app/memory/chunking.py` |
 | Embeddings | `app/memory/embeddings.py` (`openai/text-embedding-3-small` via OpenRouter) |
-| Storage | `app/memory/repository.py` — SQLite `briefs` + `chunks` tables |
+| Storage | `app/memory/repository.py` + `app/memory/models.py` — Postgres `briefs` + `chunks`, `chunks.embedding` as `vector(1536)` |
 | Copilot tool | `app/memory/tool.py` — `search_brief_memory(query, days=14)` |
 | Auto-index | `app/api/runner.py` after each successful `brief` run |
-| Backfill | `POST /api/memory/reindex` — reads `brief` rows from `eval.db` |
+| Backfill | `POST /api/memory/reindex` (and `scripts/migrate_sqlite_to_postgres.py` for legacy sqlite files) |
 | Config | `MEMORY_*` env vars in `.env.example` |
+| Ops runbook | [`docs/postgres-migration-runbook.md`](postgres-migration-runbook.md) |
 
 Temporal filter: the `days` argument on the tool (and `MEMORY_DEFAULT_DAYS`)
 limits chunks by brief `date`. Live scores and breaking news should still

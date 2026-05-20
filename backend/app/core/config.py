@@ -29,13 +29,16 @@ class Settings(BaseSettings):
     balldontlie_api_key: str = Field(default="")
     reddit_user_agent: str = Field(default="")
 
-    # Where the evaluation SQLite database lives. Defaults to
-    # ``data/eval.db`` at the project root; override via env var
-    # ``EVAL_DB_PATH`` for tests or CI.
+    # Primary SQL database for eval + memory stores.
+    database_url: str = Field(default="postgresql+asyncpg://postgres:postgres@localhost:5432/nba")
+    db_echo: bool = Field(default=False)
+    memory_embedding_dim: int = Field(default=1536, ge=1)
+
+    # Legacy SQLite paths kept for one-off migration scripts.
     eval_db_path: str = Field(default="")
+    memory_db_path: str = Field(default="")
 
     # Brief memory (RAG over past Daily Briefs for NBA Copilot).
-    memory_db_path: str = Field(default="")
     memory_enabled: bool = Field(default=True)
     memory_embedding_model: str = Field(default="openai/text-embedding-3-small")
     memory_default_days: int = Field(default=14, ge=1, le=365)
@@ -58,15 +61,15 @@ class Settings(BaseSettings):
         return bool(self.balldontlie_api_key.strip())
 
     @property
-    def resolved_eval_db_path(self) -> Path:
-        """Resolve the eval DB path, falling back to ``<root>/data/eval.db``."""
+    def resolved_legacy_eval_db_path(self) -> Path:
+        """Resolve legacy eval SQLite path for migration scripts."""
         if self.eval_db_path:
             return Path(self.eval_db_path).expanduser().resolve()
         return PROJECT_ROOT / "data" / "eval.db"
 
     @property
-    def resolved_memory_db_path(self) -> Path:
-        """Resolve the brief-memory DB path, falling back to ``<root>/data/memory.db``."""
+    def resolved_legacy_memory_db_path(self) -> Path:
+        """Resolve legacy memory SQLite path for migration scripts."""
         if self.memory_db_path:
             return Path(self.memory_db_path).expanduser().resolve()
         return PROJECT_ROOT / "data" / "memory.db"

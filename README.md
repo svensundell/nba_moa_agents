@@ -18,11 +18,11 @@ The implementation treats that workflow as a real system: runs are measured, sou
 
 **What ships today:**
 
-1. **Observable runs** — every invocation is tracked (`RunTracker` → SQLite `data/eval.db`): cost per run and per agent, token usage, LLM/MCP latency, tool failure rate, source coverage, wall-clock per graph node. The **Evaluation** tab charts history, filters by mode, and compares MoA vs single-LLM cost on `compare` runs.
+1. **Observable runs** — every invocation is tracked (`RunTracker` → Postgres `runs`/`agent_metrics`/`tool_calls`): cost per run and per agent, token usage, LLM/MCP latency, tool failure rate, source coverage, wall-clock per graph node. The **Evaluation** tab charts history, filters by mode, and compares MoA vs single-LLM cost on `compare` runs.
 2. **Source traceability** — each MCP call becomes a numbered `SourceCitation` (provider, tool, retrieval time, URL when available, payload excerpt). The **Daily Brief** editor receives a source index and can cite `[1]`, `[2]` inline; the UI links citations to the live tool timeline and a **Sources** bibliography. *(Semantic "click any phrase → tool output" and Copilot post-pass citations are on the [roadmap](#roadmap).)*
 3. **MoA + MCP** — 9 specialised agents on 3 layers across **5 model families** via OpenRouter; **three custom MCP servers, 11 tools**, strictly MCP-driven (no HTTP fallbacks). The servers are reusable in any MCP client (Claude Desktop, Cursor, etc.).
 4. **Hybrid orchestration** — `brief` / `compare` use a *deterministic* LangGraph MoA pipeline (repeatable daily recap, side-by-side baseline). **NBA Copilot** (`query`) uses a *dynamic* tool-using `create_agent` with multi-turn chat and WebSocket streaming of every tool decision.
-5. **Brief memory for Copilot** — each Daily Brief is chunked, embedded (OpenRouter), and stored in `data/memory.db`. NBA Copilot can call `search_brief_memory` to retrieve past storylines (e.g. “why is everyone talking about the Pacers this week?”) alongside live MCP tools. Reindex past briefs with `POST /api/memory/reindex`.
+5. **Brief memory for Copilot** — each Daily Brief is chunked, embedded (OpenRouter), and stored in Postgres `briefs` + `chunks` (`pgvector` for similarity). NBA Copilot can call `search_brief_memory` to retrieve past storylines (e.g. “why is everyone talking about the Pacers this week?”) alongside live MCP tools. Reindex past briefs with `POST /api/memory/reindex`.
 
 **Design choices:**
 
@@ -95,12 +95,12 @@ All three are launched as **stdio subprocesses** by `langchain_mcp_adapters.Mult
 | **Daily Brief**       | Deterministic LangGraph MoA | One click → a structured 7-section briefing for last night (Quick Hits / Box Score Recap / Standout Statlines / Trades & News / Injuries Watch / Storyline / Fan Pulse). |
 | **NBA Copilot** | Dynamic LangChain `create_agent` | Multi-turn NBA chat with tool-using reasoning. The agent decides which MCP tools to call from conversation context, and tool decisions stream live to the UI. |
 | **MoA vs Single LLM** | LangGraph MoA + parallel single-LLM baseline | Side-by-side comparison showing where the MoA pattern adds value (and where it doesn't). |
-| **Evaluation Dashboard** | Persisted run metrics (SQLite) | Cost (USD), token usage, per-agent latency, MCP tool failure rate and source coverage for every run. MoA vs single-LLM cost ratio is charted for `compare` runs. |
+| **Evaluation Dashboard** | Persisted run metrics (Postgres) | Cost (USD), token usage, per-agent latency, MCP tool failure rate and source coverage for every run. MoA vs single-LLM cost ratio is charted for `compare` runs. |
 
 ### Evaluation & observability
 
 Every pipeline invocation is observed end-to-end and persisted to
-`data/eval.db` (SQLite, auto-created at startup). A `RunTracker` is
+Postgres (`runs`, `agent_metrics`, `tool_calls`). A `RunTracker` is
 bound to each request via a `ContextVar`, so every `call_llm` and every
 MCP `mcp_invoke` records:
 
@@ -119,7 +119,7 @@ Three endpoints expose the history:
   filter matches `GET /api/runs`.
 - `GET /api/memory/briefs` — indexed Daily Briefs for Copilot memory.
 - `POST /api/memory/search` — semantic search over brief chunks (debug).
-- `POST /api/memory/reindex` — backfill memory from past `brief` runs in `eval.db`.
+- `POST /api/memory/reindex` — backfill memory from persisted past `brief` runs.
 
 The "Evaluation" tab in the frontend renders all of this, with a run
 history table, cost-per-run / cost-per-mode bar charts and an inline
@@ -152,12 +152,12 @@ until a post-pass injects the index (roadmap).
 ### Brief memory (NBA Copilot)
 
 After each **Daily Brief** run, the final markdown is chunked by section,
-embedded via OpenRouter (`MEMORY_EMBEDDING_MODEL`), and stored in
-`data/memory.db`. NBA Copilot exposes a `search_brief_memory` tool (last
+embedded via OpenRouter (`MEMORY_EMBEDDING_MODEL`), and stored in Postgres
+(`chunks.embedding` as `pgvector`). NBA Copilot exposes a `search_brief_memory` tool (last
 `MEMORY_DEFAULT_DAYS` days by default) so questions like *“Why is everyone
 talking about the Pacers this week?”* can combine **archived brief context**
 with **live MCP data**. Run `POST /api/memory/reindex` once to index briefs
-that were generated before this feature shipped.
+that were generated before this feature shipped (from legacy sqlite files).
 
 ## Quick start
 
@@ -178,6 +178,7 @@ cp .env.example .env
 cd backend
 python -m venv .venv && source .venv/bin/activate
 pip install -e ".[dev]"
+alembic upgrade head
 uvicorn app.main:app --reload --port 8000
 
 # 3. Frontend (in a second terminal)
@@ -188,6 +189,21 @@ npm run dev
 
 Open <http://localhost:5173>.
 
+### Database migrations (Alembic)
+
+```bash
+cd backend
+
+# Apply latest schema (runs / agent_metrics / tool_calls + briefs / chunks + pgvector)
+alembic upgrade head
+
+# Create a new migration after schema changes
+alembic revision -m "describe change"
+```
+
+Full cutover steps (Postgres up → Alembic → SQLite backfill → smoke tests):
+[`docs/postgres-migration-runbook.md`](docs/postgres-migration-runbook.md).
+
 ### Run with Docker
 
 Requires [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2.
@@ -196,7 +212,7 @@ Requires [Docker](https://docs.docker.com/get-docker/) and Docker Compose v2.
 # 1. Configure (OPENROUTER_API_KEY is required)
 cp .env.example .env
 
-# 2. Build and start backend + frontend
+# 2. Build and start postgres + backend + frontend
 docker compose up --build
 ```
 
@@ -206,9 +222,10 @@ docker compose up --build
 | <http://127.0.0.1:8001/docs> | FastAPI Swagger (direct backend access) |
 | <http://127.0.0.1:8001/api/health> | Health check |
 
+The backend waits for Postgres (`pgvector/pgvector`) health before booting MCP.
 The frontend container waits until the backend healthcheck passes (MCP servers
-can take up to ~90s on first boot). Run metrics are stored in a Docker volume
-(`eval_data` → `/app/data/eval.db` inside the backend container).
+can take up to ~90s on first boot). Postgres data is stored in Docker volume
+`pg_data`.
 
 ```bash
 # Detached mode
@@ -251,10 +268,12 @@ nba_moa_agents/
 │   │   │   ├── citations.py     SourceCitation helpers (MCP → numbered bibliography)
 │   │   │   └── agents/          Per-agent logic + prompts (proposers / refiners / editor)
 │   │   ├── mcp/                 MCPRegistry: launches & caches the 3 MCP servers
-│   │   ├── eval/                RunTracker, SQLite repo, pricing (metrics + citations)
-│   │   ├── memory/              Brief chunking, embeddings, RAG for NBA Copilot
+│   │   ├── eval/                RunTracker + SQLAlchemy repo/models (Postgres metrics)
+│   │   ├── memory/              Brief chunking, pgvector retrieval, RAG for NBA Copilot
 │   │   └── core/                Config & logging
+│   ├── alembic/                 Database migrations (Postgres + pgvector)
 │   ├── scripts/demo.py          CLI demo runner
+│   ├── scripts/migrate_sqlite_to_postgres.py  One-off historical backfill
 │   └── tests/                   Smoke tests (no LLM calls)
 ├── mcp_servers/
 │   ├── nba_stats/               Custom MCP server (balldontlie wrapper)
@@ -288,7 +307,7 @@ The three MCP servers in `mcp_servers/` are reusable on their own — drop them 
 - [x] React frontend with ReactFlow agent graph + tool timeline
 - [x] MoA vs Single LLM comparison
 - [x] CLI demo runner
-- [x] Evaluation dashboard: cost / latency / tool-failure / source-coverage per run, persisted to SQLite
+- [x] Evaluation dashboard: cost / latency / tool-failure / source-coverage per run, persisted to Postgres
 - [x] Structured source citations (MCP → `source_citations`, Sources panel, timeline metadata)
 - [x] Daily Brief: editor receives numbered source index + inline `[n]` citations
 - [x] Brief memory: chunk + embed Daily Briefs; `search_brief_memory` tool for NBA Copilot

@@ -18,9 +18,9 @@ from app.api.schemas import (
 from app.core.config import get_settings
 from app.eval.repository import get_repository
 from app.eval.schemas import DashboardSummary, RunSummary
+from app.mcp.client import mcp_registry
 from app.memory import get_memory_service
 from app.memory.schemas import BriefSummary, MemorySearchRequest, MemorySearchResult
-from app.mcp.client import mcp_registry
 from app.moa.llm import AGENT_MODELS, MODEL_REGISTRY, model_id
 
 router = APIRouter()

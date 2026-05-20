@@ -17,9 +17,9 @@ from langchain_core.messages import AIMessage, BaseMessage, ToolMessage
 
 from app.api.schemas import RunResult
 from app.core.config import get_settings
+from app.eval import current_tracker
 from app.mcp.client import mcp_registry
 from app.memory.tool import build_memory_tool
-from app.eval import current_tracker
 from app.moa.agents.base import (
     record_streamed_llm_call,
     record_streamed_tool_call,

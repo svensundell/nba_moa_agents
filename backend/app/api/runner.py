@@ -28,9 +28,9 @@ from app.api.schemas import ProposalView, RefinementView, RunResult
 from app.eval import RunTracker, current_tracker, use_tracker
 from app.eval.repository import get_repository
 from app.eval.schemas import RunMetrics
+from app.memory import get_memory_service
 from app.moa.citations import merge_run_citations
 from app.moa.graph import GRAPH
-from app.memory import get_memory_service
 from app.moa.open_query import run_open_query, stream_open_query_frames
 from app.moa.state import AgentEvent, AgentProposal, MoAState, initial_state
 

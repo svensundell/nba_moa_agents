@@ -1,4 +1,20 @@
 services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_DB: nba
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d nba"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
   backend:
     build:
       context: .
@@ -6,14 +22,15 @@ services:
     env_file: .env
     environment:
       ALLOWED_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
-      EVAL_DB_PATH: /app/data/eval.db
-      MEMORY_DB_PATH: /app/data/memory.db
+      DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/nba
     # Direct API/docs on :8001 (avoids clashing with a local uvicorn on :8000).
     ports:
       - "127.0.0.1:8001:8000"
     volumes:
       - ./mcp_servers:/app/mcp_servers:ro
-      - eval_data:/app/data
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -38,4 +55,4 @@ services:
         condition: service_healthy
 
 volumes:
-  eval_data:
+  pg_data:

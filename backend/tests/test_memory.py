@@ -11,7 +11,6 @@ from app.memory.embeddings import cosine_similarity, keyword_score
 from app.memory.repository import MemoryRepository
 from app.memory.service import MemoryService
 
-
 SAMPLE_BRIEF = """# Last Night in the NBA — 2026-05-18
 
 ## Quick Hits
@@ -52,8 +51,8 @@ def test_extract_brief_title() -> None:
 
 
 @pytest.mark.asyncio
-async def test_memory_repository_and_search(tmp_path) -> None:
-    repo = MemoryRepository(tmp_path / "memory.db")
+async def test_memory_repository_and_search(pg_session_factory) -> None:
+    repo = MemoryRepository(pg_session_factory)
     await repo.initialize()
     service = MemoryService(repo)
 
@@ -88,8 +87,8 @@ async def test_memory_repository_and_search(tmp_path) -> None:
 
 
 @pytest.mark.asyncio
-async def test_memory_skips_duplicate_index(tmp_path) -> None:
-    repo = MemoryRepository(tmp_path / "memory.db")
+async def test_memory_skips_duplicate_index(pg_session_factory) -> None:
+    repo = MemoryRepository(pg_session_factory)
     await repo.initialize()
     service = MemoryService(repo)
 

@@ -6,7 +6,6 @@ import math
 from functools import lru_cache
 
 import httpx
-from loguru import logger
 
 from app.core.config import get_settings
 

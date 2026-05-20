@@ -22,8 +22,12 @@ dependencies = [
     # MCP client
     "mcp>=1.0.0",
     "langchain-mcp-adapters>=0.0.3",
-    # Persistence (evaluation metrics)
+    # Persistence
     "aiosqlite>=0.20.0",
+    "sqlalchemy>=2.0.36",
+    "alembic>=1.13.3",
+    "asyncpg>=0.30.0",
+    "pgvector>=0.3.6",
     # Utilities
     "loguru>=0.7.2",
     "python-dateutil>=2.9.0",

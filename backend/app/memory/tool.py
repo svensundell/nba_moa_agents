@@ -36,7 +36,7 @@ def build_memory_tool() -> StructuredTool:
         description=(
             "Search past Daily Brief archives by semantic similarity. "
             "Use for trends, recurring storylines, 'why is everyone talking about X', "
-            "or context over the last 1–4 weeks. "
+            "or context over the last 1-4 weeks. "
             "Prefer live MCP tools (ESPN, balldontlie, Reddit) for current scores, "
             "injuries, and breaking news."
         ),

@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-from pathlib import Path
-
 from loguru import logger
 
 from app.core.config import get_settings
 from app.memory.chunking import chunk_brief_markdown, extract_brief_title
 from app.memory.embeddings import cosine_similarity, embed_texts, keyword_score
-from app.memory.repository import MemoryRepository, configure_repository, get_repository
+from app.memory.repository import MemoryRepository
 from app.memory.schemas import BriefSummary, MemoryChunkHit, MemorySearchResult
 
 _service: MemoryService | None = None
@@ -96,13 +93,6 @@ class MemoryService:
         window = days if days is not None else settings.memory_default_days
         top_k = limit if limit is not None else settings.memory_search_top_k
 
-        chunks = await self._repo.fetch_chunks_for_search(
-            days=window,
-            since_date=since_date,
-        )
-        if not chunks:
-            return MemorySearchResult(query=query, days=window, hits=[])
-
         query_vec: list[float] | None = None
         if self.enabled:
             try:
@@ -110,8 +100,23 @@ class MemoryService:
             except Exception as exc:
                 logger.warning(f"Query embedding failed: {exc}")
 
+        chunks = await self._repo.fetch_chunks_for_search(
+            days=window,
+            since_date=since_date,
+            query_embedding=query_vec,
+            limit=top_k * 6 if query_vec is not None else None,
+        )
+        if not chunks:
+            return MemorySearchResult(query=query, days=window, hits=[])
+
         scored: list[tuple[float, dict]] = []
         for row in chunks:
+            existing_score = row.get("score")
+            if isinstance(existing_score, (float, int)):
+                score = float(existing_score)
+                if score > 0:
+                    scored.append((score, row))
+                continue
             emb = row.get("embedding")
             if query_vec is not None and isinstance(emb, list) and emb:
                 score = cosine_similarity(query_vec, emb)
@@ -199,9 +204,8 @@ class MemoryService:
         return "\n".join(lines)
 
 
-def configure_memory(db_path: Path | str) -> MemoryService:
+def configure_memory(repo: MemoryRepository) -> MemoryService:
     global _service
-    repo = configure_repository(db_path)
     _service = MemoryService(repo)
     return _service
 

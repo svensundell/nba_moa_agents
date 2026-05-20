@@ -12,31 +12,36 @@ from app import __version__
 from app.api.routes import router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
-from app.eval.repository import configure_repository
-from app.memory import configure_memory
+from app.db import close_engine, configure_engine, get_session_factory, ping
+from app.eval.repository import configure_repository as configure_eval_repository
 from app.mcp.client import mcp_registry
+from app.memory import configure_memory
+from app.memory.repository import configure_repository as configure_memory_repository
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Initialise the MCP registry and the eval repository at boot.
+    """Initialise DB, repositories, and MCP registry at boot.
 
     All three MCP servers (nba_stats, reddit, espn) are spawned as stdio
     subprocesses via ``MultiServerMCPClient``. Their tool schemas are loaded
     eagerly so agents can look them up by name throughout the request cycle.
 
-    The eval repository owns a long-lived aiosqlite connection that
-    serves the run-history endpoints under ``/api/runs`` and
-    ``/api/metrics/summary``. Persistence failures are isolated from the
-    main pipeline by the runner layer.
+    Persistence uses Postgres (plus pgvector for memory embeddings) via
+    SQLAlchemy async sessions. Alembic owns schema lifecycle; startup only
+    validates connectivity and wires repositories.
     """
     settings = get_settings()
-    repo = configure_repository(settings.resolved_eval_db_path)
-    memory = configure_memory(settings.resolved_memory_db_path)
+    configure_engine(settings.database_url, echo=settings.db_echo)
+    session_factory = get_session_factory()
+    eval_repo = configure_eval_repository(session_factory)
+    memory_repo = configure_memory_repository(session_factory)
+    memory = configure_memory(memory_repo)
     try:
-        await repo.initialize()
+        await ping()
+        await eval_repo.initialize()
         await memory.initialize()
-    except Exception as exc:  # pragma: no cover - depends on filesystem
+    except Exception as exc:  # pragma: no cover - depends on network/filesystem
         logger.error(f"Repository initialisation failed: {exc}")
         raise
 
@@ -44,15 +49,17 @@ async def lifespan(app: FastAPI):
         await mcp_registry.initialize()
     except Exception as exc:  # pragma: no cover - depends on subprocesses
         logger.error(f"MCP initialisation failed: {exc}")
-        await repo.close()
+        await eval_repo.close()
         await memory.close()
+        await close_engine()
         raise
     try:
         yield
     finally:
         await mcp_registry.shutdown()
-        await repo.close()
+        await eval_repo.close()
         await memory.close()
+        await close_engine()
 
 
 def create_app() -> FastAPI:
