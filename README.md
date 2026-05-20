@@ -8,7 +8,7 @@
 ![mcp](https://img.shields.io/badge/MCP-3_servers_·_11_tools-purple)
 ![license](https://img.shields.io/badge/license-MIT-lightgrey)
 
-**Contents:** [Why](#why-this-project) · [Stack](#tech-stack) · [Case study](docs/case-study.md) · [Architecture](#architecture) · [Modes](#four-demo-modes) · [Trade-offs](#engineering-trade-offs) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Structure](#project-structure)
+**Contents:** [Why](#why-this-project) · [Stack](#tech-stack) · [Case study](docs/case-study.md) · [LLMOps](docs/llmops.md) · [Architecture](#architecture) · [Modes](#four-demo-modes) · [Trade-offs](#engineering-trade-offs) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Structure](#project-structure)
 
 ## Why this project?
 
@@ -28,7 +28,8 @@ The implementation treats that workflow as a real system: runs are measured, sou
 
 Planned next: scheduled briefs, public demo deploy. See [Roadmap](#roadmap).
 
-For a portfolio-style project narrative, see [`docs/case-study.md`](docs/case-study.md).
+For a portfolio-style project narrative, see [`docs/case-study.md`](docs/case-study.md).  
+For evaluation / LLMOps detail, see [`docs/llmops.md`](docs/llmops.md).
 
 ## Tech stack
 
@@ -56,7 +57,7 @@ For a portfolio-style project narrative, see [`docs/case-study.md`](docs/case-st
 | **Hallucination control** | MCP-grounded bullets + `analyst` refiner + numbered citations in the editor | No silver bullet — combination of retrieval, cross-check, and mandatory source index for the final brief. |
 | **Tool failures** | Recorded in metrics; agents emit explicit errors; no silent fallback to scraped HTML | Fails visibly in the UI and in the failure-rate gauge — easier to debug than wrong data. |
 | **Cost visibility** | Per-agent token + USD estimates in Postgres | Tunes model routing and tool caps with data, not guesswork. |
-| **Observability** | Custom eval store + live WebSocket trace | Full control for this repo; standard LLMOps tools (Langfuse, Phoenix) are a good fit for multi-project work — see roadmap. |
+| **Observability** | Postgres eval store + live WebSocket trace | Self-contained demo; same signals export cleanly to Langfuse/OTel on client projects — see [`docs/llmops.md`](docs/llmops.md). |
 | **Brief memory** | Temporal RAG over past briefs (`pgvector`) + live MCP tools | Copilot answers “this week” storylines from archives while still pulling fresh scores/headlines when needed. |
 
 ## Architecture
@@ -120,32 +121,13 @@ All three are launched as **stdio subprocesses** by `langchain_mcp_adapters.Mult
 | **MoA vs NBA Copilot** | LangGraph MoA + parallel NBA Copilot (`open_query`) | Same prompt, side by side: fixed specialist pipeline vs one tool-using agent with all MCP tools. |
 | **Evaluation Dashboard** | Persisted run metrics (Postgres) | Cost (USD), token usage, per-agent latency, MCP tool failure rate and source coverage for every run. MoA vs single-LLM cost ratio is charted for `compare` runs. |
 
-### Evaluation & observability
+### Evaluation & observability (LLMOps)
 
-Every pipeline invocation is observed end-to-end and persisted to
-Postgres (`runs`, `agent_metrics`, `tool_calls`). A `RunTracker` is
-bound to each request via a `ContextVar`, so every `call_llm` and every
-MCP `mcp_invoke` records:
+Each run is tracked by `RunTracker` (ContextVar-scoped) and stored in Postgres:
+**cost**, **tokens**, **LLM/MCP latency**, **tool failures**, **source coverage**, and **per-node wall-clock**. The **Evaluation** tab charts history across Daily Brief, Copilot, and Compare runs (MoA vs Copilot cost on the same prompt).
 
-- LLM tokens (input / output) and (priced) cost per `(agent, model)`
-- LLM and MCP tool latency
-- MCP success / failure (powering a tool failure-rate gauge)
-- Distinct sources cited across the run
-- Wall-clock time per LangGraph node
-
-Three endpoints expose the history:
-
-- `GET /api/runs?limit=…&mode=…` — recent runs (summary).
-- `GET /api/runs/{id}` — full payload including the per-agent breakdown.
-- `GET /api/metrics/summary?last_n=…&mode=…` — aggregates (avg cost, p95 latency,
-  tool failure rate, MoA vs Copilot cost) used by the dashboard; optional `mode`
-  filter matches `GET /api/runs`.
-- `GET /api/memory/briefs` — indexed Daily Briefs for Copilot memory.
-- `POST /api/memory/search` — semantic search over brief chunks (debug).
-
-The "Evaluation" tab in the frontend renders all of this, with a run
-history table, cost-per-run / cost-per-mode bar charts and an inline
-per-agent latency chart for any selected run.
+Full detail — metrics schema, instrumentation flow, API, screenshots, tuning guide:
+[`docs/llmops.md`](docs/llmops.md).
 
 ### Source traceability
 
@@ -354,6 +336,7 @@ nba_moa_agents/
 └── docs/
     ├── architecture.md
     ├── case-study.md          Portfolio narrative (problem → architecture → results)
+    ├── llmops.md              Evaluation metrics, instrumentation, dashboard
     └── images/                README screenshots (daily-brief-*, copilot-*, compare-*)
 ```
 

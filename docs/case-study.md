@@ -43,16 +43,25 @@ Three custom MCP servers expose 11 tools:
 
 Agents never call external providers directly. All data access passes through MCP tool boundaries for auditable execution and reusable integrations across clients (Cursor, Claude Desktop, etc.).
 
-### 3) Observability and evaluation baked into runtime
+### 3) LLMOps and evaluation (built-in, not bolted on)
 
-Each run persists metrics in Postgres:
+Instrumentation is request-scoped (`RunTracker` + `ContextVar`) and hooks into every `call_llm` / `mcp_invoke` without changing agent business logic. On completion, metrics land in Postgres (`runs`, `agent_metrics`, `tool_calls`).
 
-- total/per-agent cost and tokens;
-- LLM and tool latency;
-- tool-call count and failures;
-- source coverage and per-node wall-clock time.
+| Capability | Why it matters for production-minded LLM work |
+|------------|-----------------------------------------------|
+| Cost & tokens per agent/model | Tune routing (e.g. Flash on L1, stronger models on synthesis) |
+| MCP tool failure rate + per-call errors | Debug provider outages instead of blaming the model |
+| Source coverage + citations | Measure grounding, not just fluency |
+| Wall-clock per graph node | Validate parallel MoA vs sequential assumptions |
+| Compare mode cost split | Data-driven answer to “is MoA worth it on this prompt?” |
 
-The frontend evaluation surface compares modes over time (including side-by-side `compare` runs).
+The **Evaluation** tab is the operational surface: history by mode, aggregates (p95 latency, avg cost), and drill-down per run. Same schema for Daily Brief, Copilot, and Compare so modes are comparable.
+
+![Evaluation — Daily Brief run](images/daily-brief-evaluation.png)
+
+![Evaluation — MoA vs Copilot cost on same prompt](images/compare-evaluation.png)
+
+Technical reference: [`llmops.md`](llmops.md).
 
 ### 4) Source traceability and memory (RAG)
 
@@ -74,10 +83,9 @@ User questions vary too much for a fixed DAG. Dynamic planning handles different
 
 MCP gives explicit interfaces and better portability. It also makes failures visible: when a provider breaks, the system emits tool errors rather than silently fabricating missing data.
 
-### Why custom evaluation storage instead of only external LLMOps?
+### Why a first-party eval store (and not only Langfuse)?
 
-For this project, a local-first Postgres model gives full control over run-level analytics and UI integration.  
-In client work, the same signals can be mirrored to Langfuse/Phoenix/OpenTelemetry stacks.
+Postgres + an in-app dashboard keeps the repo self-contained and demoable without another SaaS. The event model (generations, tools, cost, failures) maps 1:1 to what Langfuse or OpenTelemetry would ingest on a client engagement — see [`llmops.md`](llmops.md).
 
 ## Reliability and quality engineering
 
@@ -101,7 +109,7 @@ The project delivers:
 - **Agent architecture**: LangGraph + dynamic tool-using agents, state design, orchestration boundaries.
 - **LLM integration**: model routing, tool grounding, prompt constraints, output shaping.
 - **RAG/memory**: chunking, embeddings, vector retrieval, temporal context reuse.
-- **LLMOps mindset**: runtime instrumentation, comparative evaluation, failure visibility.
+- **LLMOps**: per-run cost/latency/tool metrics, failure rates, MoA vs Copilot comparison, persisted history + Evaluation UI ([`llmops.md`](llmops.md)).
 - **Backend engineering**: FastAPI, async Python, Postgres/pgvector, migration discipline.
 - **Product engineering**: frontend traceability UX, live observability surfaces, explainability.
 
