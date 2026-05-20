@@ -180,9 +180,7 @@ async def run_full(
                 language=language,
             )
         else:
-            state: MoAState = initial_state(
-                mode, query=query, date=date, language=language
-            )
+            state: MoAState = initial_state(mode, query=query, date=date, language=language)
             final_state = await GRAPH.ainvoke(state)
             logger.info(
                 f"Pipeline done in {(datetime.now() - started_at).total_seconds():.1f}s "

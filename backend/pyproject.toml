@@ -23,7 +23,6 @@ dependencies = [
     "mcp>=1.0.0",
     "langchain-mcp-adapters>=0.0.3",
     # Persistence
-    "aiosqlite>=0.20.0",
     "sqlalchemy>=2.0.36",
     "alembic>=1.13.3",
     "asyncpg>=0.30.0",
@@ -64,3 +63,19 @@ ignore = ["E501"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+exclude = ["alembic/versions"]
+
+[[tool.mypy.overrides]]
+module = [
+    "app.moa.llm",
+    "app.mcp.client",
+    "app.moa.open_query",
+    "app.moa.agents.proposers.stats",
+]
+ignore_errors = true

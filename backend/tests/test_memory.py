@@ -61,9 +61,12 @@ async def test_memory_repository_and_search(pg_session_factory) -> None:
         return [basis[i % len(basis)] for i in range(len(texts))]
 
     settings = patch("app.memory.service.get_settings")
-    with settings as gs, patch(
-        "app.memory.service.embed_texts",
-        new=AsyncMock(side_effect=fake_embed),
+    with (
+        settings as gs,
+        patch(
+            "app.memory.service.embed_texts",
+            new=AsyncMock(side_effect=fake_embed),
+        ),
     ):
         gs.return_value.memory_enabled = True
         gs.return_value.has_openrouter = True
@@ -93,12 +96,16 @@ async def test_memory_skips_duplicate_index(pg_session_factory) -> None:
     service = MemoryService(repo)
 
     settings = patch("app.memory.service.get_settings")
+
     async def fake_embed(texts: list[str]) -> list[list[float]]:
         return [[0.5, 0.5, 0.0] for _ in texts]
 
-    with settings as gs, patch(
-        "app.memory.service.embed_texts",
-        new=AsyncMock(side_effect=fake_embed),
+    with (
+        settings as gs,
+        patch(
+            "app.memory.service.embed_texts",
+            new=AsyncMock(side_effect=fake_embed),
+        ),
     ):
         gs.return_value.memory_enabled = True
         gs.return_value.has_openrouter = True

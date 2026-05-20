@@ -50,14 +50,16 @@ async def news_agent(state: MoAState) -> dict:
         )
         return {
             "proposals": [prop],
-            "events": [tool_event, event("news", "proposer", "done", content="no items", model=prop.model)],
+            "events": [
+                tool_event,
+                event("news", "proposer", "done", content="no items", model=prop.model),
+            ],
         }
 
     snippets = "\n".join(f"- {i['title']} — {(i.get('summary') or '')[:140]}" for i in items)
     user = (
-        (f"User question: {query}\n\n" if query else "")
-        + f"Headlines:\n{snippets}\n\nWrite the briefing."
-    )
+        f"User question: {query}\n\n" if query else ""
+    ) + f"Headlines:\n{snippets}\n\nWrite the briefing."
     summary = await call_llm("news", system=SYSTEM, user=user)
 
     sources = [i["link"] for i in items[:5] if i.get("link")]

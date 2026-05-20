@@ -57,7 +57,10 @@ async def social_agent(state: MoAState) -> dict:
         )
         return {
             "proposals": [prop],
-            "events": [tool_event, event("social", "proposer", "done", content="empty", model=prop.model)],
+            "events": [
+                tool_event,
+                event("social", "proposer", "done", content="empty", model=prop.model),
+            ],
         }
 
     snippets = "\n".join(

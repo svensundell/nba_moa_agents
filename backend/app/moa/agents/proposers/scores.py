@@ -59,9 +59,7 @@ async def scores_agent(state: MoAState) -> dict:
         )
     except MCPToolError as exc:
         return {
-            "proposals": [
-                make_proposal("scores", f"MCP error: {exc}", sources=[])
-            ],
+            "proposals": [make_proposal("scores", f"MCP error: {exc}", sources=[])],
             "events": [event("scores", "proposer", "error", content=str(exc))],
         }
 

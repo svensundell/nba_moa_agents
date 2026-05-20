@@ -12,7 +12,7 @@ from app import __version__
 from app.api.routes import router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
-from app.db import close_engine, configure_engine, get_session_factory, ping
+from app.db import close_engine, configure_engine, get_session_factory, ping, upgrade_head
 from app.eval.repository import configure_repository as configure_eval_repository
 from app.mcp.client import mcp_registry
 from app.memory import configure_memory
@@ -28,16 +28,18 @@ async def lifespan(app: FastAPI):
     eagerly so agents can look them up by name throughout the request cycle.
 
     Persistence uses Postgres (plus pgvector for memory embeddings) via
-    SQLAlchemy async sessions. Alembic owns schema lifecycle; startup only
-    validates connectivity and wires repositories.
+    SQLAlchemy async sessions. Pending Alembic revisions are applied on
+    startup when ``AUTO_MIGRATE=true`` (default).
     """
     settings = get_settings()
-    configure_engine(settings.database_url, echo=settings.db_echo)
-    session_factory = get_session_factory()
-    eval_repo = configure_eval_repository(session_factory)
-    memory_repo = configure_memory_repository(session_factory)
-    memory = configure_memory(memory_repo)
     try:
+        if settings.auto_migrate:
+            await upgrade_head()
+        configure_engine(settings.database_url, echo=settings.db_echo)
+        session_factory = get_session_factory()
+        eval_repo = configure_eval_repository(session_factory)
+        memory_repo = configure_memory_repository(session_factory)
+        memory = configure_memory(memory_repo)
         await ping()
         await eval_repo.initialize()
         await memory.initialize()
@@ -102,7 +104,6 @@ def create_app() -> FastAPI:
                 "/api/metrics/summary",
                 "/api/memory/briefs",
                 "/api/memory/search",
-                "/api/memory/reindex",
             ],
         }
 

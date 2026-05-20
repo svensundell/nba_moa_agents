@@ -84,16 +84,8 @@ def _usage_from_response(response: Any) -> tuple[int, int]:
         token_usage = meta.get("token_usage") or meta.get("usage") or {}
         if isinstance(token_usage, dict):
             return (
-                int(
-                    token_usage.get("prompt_tokens")
-                    or token_usage.get("input_tokens")
-                    or 0
-                ),
-                int(
-                    token_usage.get("completion_tokens")
-                    or token_usage.get("output_tokens")
-                    or 0
-                ),
+                int(token_usage.get("prompt_tokens") or token_usage.get("input_tokens") or 0),
+                int(token_usage.get("completion_tokens") or token_usage.get("output_tokens") or 0),
             )
     return 0, 0
 
@@ -286,11 +278,7 @@ def record_streamed_llm_call(
     if isinstance(output, AIMessage):
         in_tok, out_tok = _usage_from_response(output)
     elif isinstance(output, dict):
-        usage = (
-            output.get("usage_metadata")
-            or output.get("usage")
-            or {}
-        )
+        usage = output.get("usage_metadata") or output.get("usage") or {}
         if isinstance(usage, dict):
             in_tok = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
             out_tok = int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)

@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY backend/pyproject.toml /app/backend/pyproject.toml
 COPY backend/app /app/backend/app
+COPY backend/alembic.ini /app/backend/alembic.ini
+COPY backend/alembic /app/backend/alembic
 COPY mcp_servers /app/mcp_servers
 COPY README.md /app/README.md
 

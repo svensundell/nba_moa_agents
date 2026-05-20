@@ -14,14 +14,14 @@ LanguageCode = Literal["en", "fr"]
 
 
 class BriefRequest(BaseModel):
-    date: str | None = Field(default=None, description="ISO date (YYYY-MM-DD), defaults to yesterday.")
+    date: str | None = Field(
+        default=None, description="ISO date (YYYY-MM-DD), defaults to yesterday."
+    )
     language: LanguageCode = Field(default="en", description="Output language (`en` or `fr`).")
 
 
 class ChatMessage(BaseModel):
-    role: Literal["user", "assistant"] = Field(
-        description="Chat role compatible with NBA Copilot."
-    )
+    role: Literal["user", "assistant"] = Field(description="Chat role compatible with NBA Copilot.")
     content: str = Field(min_length=1, max_length=2000)
 
 
@@ -79,9 +79,10 @@ class RunResult(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    status: Literal["ok"]
+    status: Literal["ok", "degraded"]
     has_openrouter: bool
     has_balldontlie: bool
+    database_ok: bool
     mcp_initialised: bool
     mcp_servers: list[str]
     mcp_tools: list[str]

@@ -22,7 +22,7 @@ The implementation treats that workflow as a real system: runs are measured, sou
 2. **Source traceability** — each MCP call becomes a numbered `SourceCitation` (provider, tool, retrieval time, URL when available, payload excerpt). The **Daily Brief** editor receives a source index and can cite `[1]`, `[2]` inline; the UI links citations to the live tool timeline and a **Sources** bibliography. *(Semantic "click any phrase → tool output" and Copilot post-pass citations are on the [roadmap](#roadmap).)*
 3. **MoA + MCP** — 9 specialised agents on 3 layers across **5 model families** via OpenRouter; **three custom MCP servers, 11 tools**, strictly MCP-driven (no HTTP fallbacks). The servers are reusable in any MCP client (Claude Desktop, Cursor, etc.).
 4. **Hybrid orchestration** — `brief` / `compare` use a *deterministic* LangGraph MoA pipeline (repeatable daily recap, side-by-side baseline). **NBA Copilot** (`query`) uses a *dynamic* tool-using `create_agent` with multi-turn chat and WebSocket streaming of every tool decision.
-5. **Brief memory for Copilot** — each Daily Brief is chunked, embedded (OpenRouter), and stored in Postgres `briefs` + `chunks` (`pgvector` for similarity). NBA Copilot can call `search_brief_memory` to retrieve past storylines (e.g. “why is everyone talking about the Pacers this week?”) alongside live MCP tools. Reindex past briefs with `POST /api/memory/reindex`.
+5. **Brief memory for Copilot** — each Daily Brief is chunked, embedded (OpenRouter), and stored in Postgres `briefs` + `chunks` (`pgvector` for similarity). NBA Copilot can call `search_brief_memory` to retrieve past storylines (e.g. “why is everyone talking about the Pacers this week?”) alongside live MCP tools.
 
 **Design choices:**
 
@@ -119,7 +119,6 @@ Three endpoints expose the history:
   filter matches `GET /api/runs`.
 - `GET /api/memory/briefs` — indexed Daily Briefs for Copilot memory.
 - `POST /api/memory/search` — semantic search over brief chunks (debug).
-- `POST /api/memory/reindex` — backfill memory from persisted past `brief` runs.
 
 The "Evaluation" tab in the frontend renders all of this, with a run
 history table, cost-per-run / cost-per-mode bar charts and an inline
@@ -156,8 +155,7 @@ embedded via OpenRouter (`MEMORY_EMBEDDING_MODEL`), and stored in Postgres
 (`chunks.embedding` as `pgvector`). NBA Copilot exposes a `search_brief_memory` tool (last
 `MEMORY_DEFAULT_DAYS` days by default) so questions like *“Why is everyone
 talking about the Pacers this week?”* can combine **archived brief context**
-with **live MCP data**. Run `POST /api/memory/reindex` once to index briefs
-that were generated before this feature shipped (from legacy sqlite files).
+with **live MCP data**. New briefs are indexed automatically after each successful Daily Brief run.
 
 ## Quick start
 
@@ -174,35 +172,32 @@ that were generated before this feature shipped (from legacy sqlite files).
 cp .env.example .env
 # fill in OPENROUTER_API_KEY (required) and BALLDONTLIE_API_KEY (optional)
 
-# 2. Backend
-cd backend
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-alembic upgrade head
-uvicorn app.main:app --reload --port 8000
+# 2. Install + start Postgres + backend (from repo root)
+make install
+make dev
+# Migrations run automatically on startup (AUTO_MIGRATE=true)
 
-# 3. Frontend (in a second terminal)
-cd frontend
-npm install
-npm run dev
+# 3. Frontend (second terminal)
+make dev-frontend
 ```
+
+Equivalent manual steps: `docker compose up -d postgres`, then `cd backend && uv run uvicorn app.main:app --reload --port 8000`, then `cd frontend && npm run dev`.
 
 Open <http://localhost:5173>.
 
 ### Database migrations (Alembic)
 
+On startup the backend runs `alembic upgrade head` when `AUTO_MIGRATE=true` (default in `.env.example`). Docker Compose applies migrations before serving traffic.
+
 ```bash
 cd backend
 
-# Apply latest schema (runs / agent_metrics / tool_calls + briefs / chunks + pgvector)
+# Optional: run migrations manually (e.g. AUTO_MIGRATE=false)
 alembic upgrade head
 
 # Create a new migration after schema changes
 alembic revision -m "describe change"
 ```
-
-Full cutover steps (Postgres up → Alembic → SQLite backfill → smoke tests):
-[`docs/postgres-migration-runbook.md`](docs/postgres-migration-runbook.md).
 
 ### Run with Docker
 
@@ -273,8 +268,7 @@ nba_moa_agents/
 │   │   └── core/                Config & logging
 │   ├── alembic/                 Database migrations (Postgres + pgvector)
 │   ├── scripts/demo.py          CLI demo runner
-│   ├── scripts/migrate_sqlite_to_postgres.py  One-off historical backfill
-│   └── tests/                   Smoke tests (no LLM calls)
+│   └── tests/                   Smoke + MCP helper + graph structure tests
 ├── mcp_servers/
 │   ├── nba_stats/               Custom MCP server (balldontlie wrapper)
 │   ├── reddit/                  Custom MCP server (public Reddit JSON wrapper)
@@ -284,8 +278,21 @@ nba_moa_agents/
 │   ├── src/components/          SourcesBibliography, CitedMarkdown, EvalDashboard, …
 │   └── src/api.ts               REST + WebSocket client
 ├── docker-compose.yml
+├── Makefile                     make dev | test | lint | migrate | docker-up
+├── .github/workflows/ci.yml     Ruff, mypy, pytest, frontend build
 └── docs/architecture.md
 ```
+
+### Quality gates
+
+```bash
+make lint          # Ruff check + format check
+make typecheck     # Mypy (LangChain/MCP modules use overrides in backend/pyproject.toml)
+make test          # Backend pytest + frontend production build
+make test-integration   # Postgres tests (TEST_DATABASE_URL, DB nba_test)
+```
+
+CI runs the same checks on every push/PR (`.github/workflows/ci.yml`).
 
 ## Plug the custom MCP servers into Claude Desktop / Cursor
 
@@ -311,6 +318,7 @@ The three MCP servers in `mcp_servers/` are reusable on their own — drop them 
 - [x] Structured source citations (MCP → `source_citations`, Sources panel, timeline metadata)
 - [x] Daily Brief: editor receives numbered source index + inline `[n]` citations
 - [x] Brief memory: chunk + embed Daily Briefs; `search_brief_memory` tool for NBA Copilot
+- [x] Docker Compose, Makefile, GitHub Actions CI, Ruff/mypy/pytest
 - [ ] NBA Copilot: post-pass to inject source index so `[n]` in answers match the bibliography
 - [ ] Click arbitrary phrase → tool output (semantic trace-back, not only `[n]`)
 - [ ] Scheduled daily briefing (cron + email/Slack)

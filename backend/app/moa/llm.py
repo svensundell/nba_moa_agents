@@ -66,9 +66,7 @@ def get_model(name: str, *, temperature: float | None = None) -> BaseChatModel:
     """Instantiate a chat model for a logical model name via OpenRouter."""
     settings = get_settings()
     if not settings.has_openrouter:
-        raise RuntimeError(
-            "OPENROUTER_API_KEY is not set. Add it to your .env file."
-        )
+        raise RuntimeError("OPENROUTER_API_KEY is not set. Add it to your .env file.")
     spec = MODEL_REGISTRY.get(name) or MODEL_REGISTRY[DEFAULT_MODEL]
     temp = temperature if temperature is not None else spec.temperature
     return ChatOpenAI(

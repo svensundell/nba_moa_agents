@@ -40,9 +40,7 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
 
     rows = data.get("data") or []
     if len(rows) != len(texts):
-        raise RuntimeError(
-            f"Embedding API returned {len(rows)} vectors for {len(texts)} inputs."
-        )
+        raise RuntimeError(f"Embedding API returned {len(rows)} vectors for {len(texts)} inputs.")
     ordered = sorted(rows, key=lambda row: row.get("index", 0))
     return [list(row["embedding"]) for row in ordered]
 

@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from alembic import op
 import sqlalchemy as sa
 from pgvector.sqlalchemy import Vector
 from sqlalchemy.dialects import postgresql
+
+from alembic import op
 
 revision = "20260520_000001"
 down_revision = None
@@ -102,7 +103,9 @@ def upgrade() -> None:
     )
     op.create_index("idx_chunks_brief_id", "chunks", ["brief_id"], unique=False)
     op.create_index("idx_chunks_date", "chunks", ["date"], unique=False)
-    op.execute("CREATE INDEX IF NOT EXISTS idx_chunks_embedding_hnsw ON chunks USING hnsw (embedding vector_cosine_ops)")
+    op.execute(
+        "CREATE INDEX IF NOT EXISTS idx_chunks_embedding_hnsw ON chunks USING hnsw (embedding vector_cosine_ops)"
+    )
 
 
 def downgrade() -> None:

@@ -374,9 +374,8 @@ NBA Copilot (query mode)
 | Storage | `app/memory/repository.py` + `app/memory/models.py` — Postgres `briefs` + `chunks`, `chunks.embedding` as `vector(1536)` |
 | Copilot tool | `app/memory/tool.py` — `search_brief_memory(query, days=14)` |
 | Auto-index | `app/api/runner.py` after each successful `brief` run |
-| Backfill | `POST /api/memory/reindex` (and `scripts/migrate_sqlite_to_postgres.py` for legacy sqlite files) |
 | Config | `MEMORY_*` env vars in `.env.example` |
-| Ops runbook | [`docs/postgres-migration-runbook.md`](postgres-migration-runbook.md) |
+| Schema | Alembic; `AUTO_MIGRATE=true` runs `upgrade head` in FastAPI lifespan (`app/db/migrate.py`) |
 
 Temporal filter: the `days` argument on the tool (and `MEMORY_DEFAULT_DAYS`)
 limits chunks by brief `date`. Live scores and breaking news should still

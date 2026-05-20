@@ -193,11 +193,14 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const coreReady = Boolean(health?.has_openrouter) && Boolean(health?.mcp_initialised);
+    const coreReady =
+      Boolean(health?.has_openrouter) &&
+      Boolean(health?.mcp_initialised) &&
+      health?.database_ok !== false;
     if (coreReady) return;
     const id = window.setInterval(refreshHealth, 5000);
     return () => window.clearInterval(id);
-  }, [health?.has_openrouter, health?.mcp_initialised]);
+  }, [health?.has_openrouter, health?.mcp_initialised, health?.database_ok]);
 
   const models = useMemo(() => {
     const map: Record<string, string> = {};
@@ -248,7 +251,10 @@ export default function App() {
     if (activeMode === "query" && trimmedQuery.length < 3) {
       return;
     }
-    const coreReady = Boolean(health?.has_openrouter) && Boolean(health?.mcp_initialised);
+    const coreReady =
+      Boolean(health?.has_openrouter) &&
+      Boolean(health?.mcp_initialised) &&
+      health?.database_ok !== false;
     if (!coreReady) {
       setRunError(ui.backendNotReady);
       refreshHealth();
@@ -495,7 +501,10 @@ function Header({
   onRetryHealth: () => void;
 }) {
   const toolCount = health?.mcp_tools?.length ?? 0;
-  const coreReady = Boolean(health?.has_openrouter) && Boolean(health?.mcp_initialised);
+  const coreReady =
+    Boolean(health?.has_openrouter) &&
+    Boolean(health?.mcp_initialised) &&
+    health?.database_ok !== false;
   const optionalMissing = health?.has_balldontlie === false;
 
   const statusText = coreReady
@@ -555,6 +564,7 @@ function Header({
             </p>
             <div className="flex items-center gap-2 mt-2">
               <HealthPill ok={health?.has_openrouter} label="OpenRouter" />
+              <HealthPill ok={health?.database_ok} label="Postgres" />
               <HealthPill
                 ok={health?.has_balldontlie}
                 label="balldontlie"

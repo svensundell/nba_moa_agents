@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
 from loguru import logger
@@ -16,6 +17,7 @@ from app.api.schemas import (
     RunResult,
 )
 from app.core.config import get_settings
+from app.db.session import ping as db_ping
 from app.eval.repository import get_repository
 from app.eval.schemas import DashboardSummary, RunSummary
 from app.mcp.client import mcp_registry
@@ -26,18 +28,25 @@ from app.moa.llm import AGENT_MODELS, MODEL_REGISTRY, model_id
 router = APIRouter()
 
 
-def _normalise_language(language: str | None) -> str:
+def _normalise_language(language: str | None) -> Literal["en", "fr"]:
     value = (language or "en").strip().lower()
-    return value if value in {"en", "fr"} else "en"
+    return "fr" if value == "fr" else "en"
 
 
 @router.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     settings = get_settings()
+    database_ok = False
+    try:
+        await db_ping()
+        database_ok = True
+    except Exception:
+        database_ok = False
     return HealthResponse(
-        status="ok",
+        status="ok" if database_ok else "degraded",
         has_openrouter=settings.has_openrouter,
         has_balldontlie=settings.has_balldontlie,
+        database_ok=database_ok,
         mcp_initialised=mcp_registry.initialised,
         mcp_servers=mcp_registry.server_names,
         mcp_tools=mcp_registry.tool_names,
@@ -152,23 +161,6 @@ async def search_memory(req: MemorySearchRequest) -> MemorySearchResult:
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     return await memory.search(req.query, days=req.days, limit=req.limit)
-
-
-@router.post("/memory/reindex")
-async def reindex_memory(
-    limit: int = Query(default=100, ge=1, le=500),
-) -> dict[str, int]:
-    """Backfill brief memory from persisted ``brief`` runs in the eval database."""
-    try:
-        memory = get_memory_service()
-    except RuntimeError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
-    if not memory.enabled:
-        raise HTTPException(
-            status_code=400,
-            detail="Memory requires MEMORY_ENABLED=true and OPENROUTER_API_KEY.",
-        )
-    return await memory.reindex_from_eval(limit=limit)
 
 
 @router.websocket("/ws/run")

@@ -32,11 +32,8 @@ class Settings(BaseSettings):
     # Primary SQL database for eval + memory stores.
     database_url: str = Field(default="postgresql+asyncpg://postgres:postgres@localhost:5432/nba")
     db_echo: bool = Field(default=False)
+    auto_migrate: bool = Field(default=True)
     memory_embedding_dim: int = Field(default=1536, ge=1)
-
-    # Legacy SQLite paths kept for one-off migration scripts.
-    eval_db_path: str = Field(default="")
-    memory_db_path: str = Field(default="")
 
     # Brief memory (RAG over past Daily Briefs for NBA Copilot).
     memory_enabled: bool = Field(default=True)
@@ -59,20 +56,6 @@ class Settings(BaseSettings):
     @property
     def has_balldontlie(self) -> bool:
         return bool(self.balldontlie_api_key.strip())
-
-    @property
-    def resolved_legacy_eval_db_path(self) -> Path:
-        """Resolve legacy eval SQLite path for migration scripts."""
-        if self.eval_db_path:
-            return Path(self.eval_db_path).expanduser().resolve()
-        return PROJECT_ROOT / "data" / "eval.db"
-
-    @property
-    def resolved_legacy_memory_db_path(self) -> Path:
-        """Resolve legacy memory SQLite path for migration scripts."""
-        if self.memory_db_path:
-            return Path(self.memory_db_path).expanduser().resolve()
-        return PROJECT_ROOT / "data" / "memory.db"
 
 
 @lru_cache

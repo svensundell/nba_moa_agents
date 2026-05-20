@@ -159,8 +159,10 @@ export async function fetchAgents(): Promise<AgentMeta[]> {
 }
 
 export interface HealthInfo {
+  status?: "ok" | "degraded";
   has_openrouter: boolean;
   has_balldontlie: boolean;
+  database_ok?: boolean;
   mcp_initialised: boolean;
   mcp_servers: string[];
   mcp_tools: string[];

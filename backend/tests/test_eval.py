@@ -4,7 +4,7 @@ The tests are fully offline:
 
 * pricing math is deterministic
 * the tracker is pure Python
-* the repository uses a tmp_path-scoped SQLite file
+* the repository uses a Postgres test database (`TEST_DATABASE_URL`)
 
 They are intentionally small — one assertion per behaviour — to make
 failure messages obvious in CI.

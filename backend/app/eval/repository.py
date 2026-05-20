@@ -194,7 +194,8 @@ class EvalRepository:
         if payload is None:
             return None
         try:
-            return json.loads(payload)
+            data: dict[str, Any] = json.loads(payload)
+            return data
         except (TypeError, ValueError):
             return None
 
@@ -283,7 +284,9 @@ class EvalRepository:
             )
             if mode:
                 stmt = stmt.where(RunRow.mode == mode)
-            rows = (await session.execute(stmt.order_by(desc(RunRow.started_at)).limit(last_n))).all()
+            rows = (
+                await session.execute(stmt.order_by(desc(RunRow.started_at)).limit(last_n))
+            ).all()
 
         total_runs = len(rows)
         if total_runs == 0:
@@ -334,9 +337,7 @@ class EvalRepository:
             total_runs=total_runs,
             avg_cost_usd=total_cost / total_runs,
             avg_duration_seconds=total_duration / total_runs,
-            tool_failure_rate=(
-                total_tool_failures / total_tool_calls if total_tool_calls else 0.0
-            ),
+            tool_failure_rate=(total_tool_failures / total_tool_calls if total_tool_calls else 0.0),
             cost_by_mode=cost_by_mode,
             avg_cost_by_mode=avg_cost_by_mode,
             runs_by_mode=runs_by_mode,
@@ -362,9 +363,7 @@ def configure_repository(
 def get_repository() -> EvalRepository:
     """Return the configured repository, raising if none is set."""
     if _repository is None:
-        raise RuntimeError(
-            "Eval repository is not configured. Call configure_repository() first."
-        )
+        raise RuntimeError("Eval repository is not configured. Call configure_repository() first.")
     return _repository
 
 

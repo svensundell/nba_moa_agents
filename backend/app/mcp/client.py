@@ -122,9 +122,7 @@ class MCPRegistry:
             self._tools[tool.name] = tool
         self._client = client
         self._initialised = True
-        logger.info(
-            f"MCP ready — {len(self._tools)} tools loaded: {self.tool_names}"
-        )
+        logger.info(f"MCP ready — {len(self._tools)} tools loaded: {self.tool_names}")
 
     def get_tool(self, name: str) -> BaseTool:
         """Return the tool with the given prefixed name (raises if missing)."""
@@ -137,8 +135,7 @@ class MCPRegistry:
             return self._tools[name]
         except KeyError as exc:
             raise MCPToolMissing(
-                f"MCP tool '{name}' is not in the registry. "
-                f"Available: {self.tool_names}"
+                f"MCP tool '{name}' is not in the registry. Available: {self.tool_names}"
             ) from exc
 
     def get_tools_for(self, server: str) -> list[BaseTool]:

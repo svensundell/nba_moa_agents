@@ -59,15 +59,12 @@ class MemoryService:
         embeddings: list[list[float] | None]
         try:
             vectors = await embed_texts(texts)
-            embeddings = vectors
+            embeddings = [v for v in vectors]
         except Exception as exc:
             logger.warning(f"Embedding failed for brief {brief_id}: {exc} — keyword fallback only.")
             embeddings = [None] * len(texts)
 
-        rows = [
-            (draft.section, draft.content, embeddings[i])
-            for i, draft in enumerate(drafts)
-        ]
+        rows = [(draft.section, draft.content, embeddings[i]) for i, draft in enumerate(drafts)]
         title = extract_brief_title(body)
         count = await self._repo.upsert_brief(
             brief_id=brief_id,
@@ -142,42 +139,6 @@ class MemoryService:
     async def list_briefs(self, *, limit: int = 50) -> list[BriefSummary]:
         return await self._repo.list_briefs(limit=limit)
 
-    async def reindex_from_eval(self, *, limit: int = 100) -> dict[str, int]:
-        """Backfill memory from persisted brief runs in the eval database."""
-        from app.eval.repository import get_repository as get_eval_repo
-
-        eval_repo = get_eval_repo()
-        runs = await eval_repo.list_runs(limit=limit, mode="brief")
-        indexed = 0
-        skipped = 0
-        chunks_total = 0
-        for summary in runs:
-            if await self._repo.has_brief(summary.run_id):
-                skipped += 1
-                continue
-            payload = await eval_repo.get_run_payload(summary.run_id)
-            if not payload:
-                skipped += 1
-                continue
-            brief = str(payload.get("final_brief") or "").strip()
-            if not brief:
-                skipped += 1
-                continue
-            n = await self.index_brief(
-                brief_id=summary.run_id,
-                run_id=summary.run_id,
-                date_value=summary.date,
-                language=str(payload.get("language") or "en"),
-                markdown=brief,
-                force=True,
-            )
-            if n > 0:
-                indexed += 1
-                chunks_total += n
-            else:
-                skipped += 1
-        return {"indexed": indexed, "skipped": skipped, "chunks": chunks_total}
-
     def format_hits_for_tool(self, result: MemorySearchResult) -> str:
         if not result.hits:
             return (
@@ -193,8 +154,7 @@ class MemoryService:
             if len(preview) > 900:
                 preview = preview[:900] + "…"
             lines.append(
-                f"[memory-{i}] {hit.date} — {hit.section} (brief {hit.brief_id[:8]}…)\n"
-                f"{preview}"
+                f"[memory-{i}] {hit.date} — {hit.section} (brief {hit.brief_id[:8]}…)\n{preview}"
             )
             lines.append("")
         lines.append(

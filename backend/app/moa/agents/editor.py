@@ -76,10 +76,7 @@ data points. When evidence is thin, say so explicitly rather than guessing.
 
 def _language_instruction(language: str) -> str:
     if language == "fr":
-        return (
-            "Write the final output in French.\n"
-            "Keep section headings and prose in French."
-        )
+        return "Write the final output in French.\nKeep section headings and prose in French."
     return "Write the final output in English."
 
 

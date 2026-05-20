@@ -299,9 +299,7 @@ class _LLMTimer:
 # ContextVar plumbing
 # ---------------------------------------------------------------------------
 
-_current_tracker: ContextVar[RunTracker | None] = ContextVar(
-    "nba_moa_run_tracker", default=None
-)
+_current_tracker: ContextVar[RunTracker | None] = ContextVar("nba_moa_run_tracker", default=None)
 
 
 def current_tracker() -> RunTracker | None:

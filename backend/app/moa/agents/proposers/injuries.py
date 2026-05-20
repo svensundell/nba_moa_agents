@@ -55,7 +55,10 @@ async def injuries_agent(state: MoAState) -> dict:
         )
         return {
             "proposals": [prop],
-            "events": [tool_event, event("injuries", "proposer", "done", content="none", model=prop.model)],
+            "events": [
+                tool_event,
+                event("injuries", "proposer", "done", content="none", model=prop.model),
+            ],
         }
 
     snippets = "\n".join(f"- {i['title']} — {(i.get('summary') or '')[:160]}" for i in items)

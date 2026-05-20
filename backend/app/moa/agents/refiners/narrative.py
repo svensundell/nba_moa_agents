@@ -29,7 +29,10 @@ warranted. No emojis.
 async def narrative_agent(state: MoAState) -> dict:
     proposals = state.get("proposals", [])
     if not proposals:
-        return {"refinements": [], "events": [event("narrative", "refiner", "done", content="no proposals")]}
+        return {
+            "refinements": [],
+            "events": [event("narrative", "refiner", "done", content="no proposals")],
+        }
 
     drafts = "\n\n".join(f"### {p.agent}\n{p.summary}" for p in proposals)
     user = f"Drafts:\n\n{drafts}\n\nFind the storyline(s)."

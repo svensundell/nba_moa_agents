@@ -105,7 +105,15 @@ async def stats_agent(state: MoAState) -> dict:
         )
         return {
             "proposals": [prop],
-            "events": [event("stats", "proposer", "error", content="stats tools unavailable", model=model_label)],
+            "events": [
+                event(
+                    "stats",
+                    "proposer",
+                    "error",
+                    content="stats tools unavailable",
+                    model=model_label,
+                )
+            ],
         }
 
     user_prompt = (
@@ -143,12 +151,9 @@ async def stats_agent(state: MoAState) -> dict:
                 output = trace_event.get("data", {}).get("output")
                 preview = _extract_text(output)[:220].replace("\n", " ")
                 latency_ms = (
-                    (time.monotonic() - tool_start_times.pop(run_id, time.monotonic()))
-                    * 1000.0
-                )
-                record_streamed_tool_call(
-                    "stats", trace_event, latency_ms=latency_ms
-                )
+                    time.monotonic() - tool_start_times.pop(run_id, time.monotonic())
+                ) * 1000.0
+                record_streamed_tool_call("stats", trace_event, latency_ms=latency_ms)
                 dedupe_key = (tool_name, preview)
                 if dedupe_key in seen_tool_events:
                     continue
@@ -166,9 +171,8 @@ async def stats_agent(state: MoAState) -> dict:
                 llm_start_times[run_id] = time.monotonic()
             elif evt_type == "on_chat_model_end":
                 latency_ms = (
-                    (time.monotonic() - llm_start_times.pop(run_id, time.monotonic()))
-                    * 1000.0
-                )
+                    time.monotonic() - llm_start_times.pop(run_id, time.monotonic())
+                ) * 1000.0
                 record_streamed_llm_call(
                     "stats",
                     model_label,
