@@ -179,7 +179,7 @@ def _filter_nba_copilot_tools() -> list[Any]:
     }
     tools: list[Any] = [tool for tool in mcp_registry.all_tools if tool.name not in blocked]
     settings = get_settings()
-    if settings.memory_enabled and settings.has_openrouter:
+    if settings.memory_enabled:
         tools.append(build_memory_tool())
     return tools
 

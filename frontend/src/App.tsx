@@ -11,6 +11,8 @@ import {
   type HealthInfo,
   type RunResult,
 } from "./api";
+import { hasRunCredentials } from "./credentials";
+import { AccessGate } from "./components/AccessGate";
 import { AgentFlow, type AgentStatus } from "./components/AgentFlow";
 import { EvalDashboard } from "./components/EvalDashboard";
 import { EventLog } from "./components/EventLog";
@@ -179,6 +181,7 @@ export default function App() {
   );
   const [agents, setAgents] = useState<AgentMeta[]>([]);
   const [health, setHealth] = useState<HealthInfo | null>(null);
+  const [credentialsReady, setCredentialsReady] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [activeCitationId, setActiveCitationId] = useState<number | null>(null);
   const ui = UI_TEXT[language];
@@ -195,14 +198,18 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    setCredentialsReady(hasRunCredentials(health));
+  }, [health]);
+
+  useEffect(() => {
     const coreReady =
-      Boolean(health?.has_openrouter) &&
       Boolean(health?.mcp_initialised) &&
-      health?.database_ok !== false;
+      health?.database_ok !== false &&
+      hasRunCredentials(health);
     if (coreReady) return;
     const id = window.setInterval(refreshHealth, 5000);
     return () => window.clearInterval(id);
-  }, [health?.has_openrouter, health?.mcp_initialised, health?.database_ok]);
+  }, [health?.mcp_initialised, health?.database_ok, credentialsReady]);
 
   const models = useMemo(() => {
     const map: Record<string, string> = {};
@@ -254,9 +261,9 @@ export default function App() {
       return;
     }
     const coreReady =
-      Boolean(health?.has_openrouter) &&
       Boolean(health?.mcp_initialised) &&
-      health?.database_ok !== false;
+      health?.database_ok !== false &&
+      hasRunCredentials(health);
     if (!coreReady) {
       setRunError(ui.backendNotReady);
       refreshHealth();
@@ -348,6 +355,13 @@ export default function App() {
       </div>
 
       <main className="relative z-10 max-w-7xl mx-auto px-6 py-6 space-y-6">
+        {health && !credentialsReady && (
+          <AccessGate
+            health={health}
+            onSaved={() => setCredentialsReady(hasRunCredentials(health))}
+          />
+        )}
+
         <ModeTabs
           mode={mode}
           onChange={handleModeChange}
@@ -504,9 +518,9 @@ function Header({
 }) {
   const toolCount = health?.mcp_tools?.length ?? 0;
   const coreReady =
-    Boolean(health?.has_openrouter) &&
     Boolean(health?.mcp_initialised) &&
-    health?.database_ok !== false;
+    health?.database_ok !== false &&
+    hasRunCredentials(health);
   const optionalMissing = health?.has_balldontlie === false;
 
   const statusText = coreReady
@@ -565,7 +579,10 @@ function Header({
               {statusText}
             </p>
             <div className="flex items-center gap-2 mt-2">
-              <HealthPill ok={health?.has_openrouter} label="OpenRouter" />
+              <HealthPill
+                ok={hasRunCredentials(health)}
+                label="OpenRouter"
+              />
               <HealthPill ok={health?.database_ok} label="Postgres" />
               <HealthPill
                 ok={health?.has_balldontlie}

@@ -26,7 +26,7 @@ class MemoryService:
     @property
     def enabled(self) -> bool:
         settings = get_settings()
-        return settings.memory_enabled and settings.has_openrouter
+        return settings.memory_enabled
 
     async def index_brief(
         self,

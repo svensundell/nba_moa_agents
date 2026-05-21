@@ -80,9 +80,10 @@ class RunResult(BaseModel):
 
 class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
-    has_openrouter: bool
+    openrouter_byok: bool = True
     has_balldontlie: bool
     database_ok: bool
     mcp_initialised: bool
     mcp_servers: list[str]
     mcp_tools: list[str]
+    app_access_required: bool = False

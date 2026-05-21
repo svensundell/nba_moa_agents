@@ -12,10 +12,12 @@ Useful for screen-recording the pipeline without spinning up the frontend.
 from __future__ import annotations
 
 import asyncio
+import os
 import sys
 from datetime import datetime
 
 from app.api.runner import run_full
+from app.core.credentials import use_openrouter_api_key
 from app.core.logging import configure_logging
 
 HELP = """\
@@ -41,10 +43,17 @@ async def _main() -> int:
         print(HELP)
         return 1
 
+    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not api_key:
+        print("error: export OPENROUTER_API_KEY in your shell (BYOK — same key as the web UI).")
+        print(HELP)
+        return 1
+
     configure_logging()
     started = datetime.now()
     print(f"\n=== Running MoA pipeline (mode={mode}) ===\n")
-    result = await run_full(mode, query=query)  # type: ignore[arg-type]
+    with use_openrouter_api_key(api_key):
+        result = await run_full(mode, query=query)  # type: ignore[arg-type]
     print(f"\n--- Done in {(datetime.now() - started).total_seconds():.1f}s ---\n")
 
     print("# Final brief\n")

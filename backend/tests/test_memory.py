@@ -11,6 +11,16 @@ from app.memory.embeddings import cosine_similarity, keyword_score
 from app.memory.repository import MemoryRepository
 from app.memory.service import MemoryService
 
+# Must match default MEMORY_EMBEDDING_DIM / pgvector column size in models.
+_TEST_EMBED_DIM = 1536
+
+
+def _unit_vector(index: int) -> list[float]:
+    vec = [0.0] * _TEST_EMBED_DIM
+    vec[index % _TEST_EMBED_DIM] = 1.0
+    return vec
+
+
 SAMPLE_BRIEF = """# Last Night in the NBA — 2026-05-18
 
 ## Quick Hits
@@ -57,8 +67,7 @@ async def test_memory_repository_and_search(pg_session_factory) -> None:
     service = MemoryService(repo)
 
     async def fake_embed(texts: list[str]) -> list[list[float]]:
-        basis = [[1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]]
-        return [basis[i % len(basis)] for i in range(len(texts))]
+        return [_unit_vector(i) for i in range(len(texts))]
 
     settings = patch("app.memory.service.get_settings")
     with (
@@ -69,7 +78,6 @@ async def test_memory_repository_and_search(pg_session_factory) -> None:
         ),
     ):
         gs.return_value.memory_enabled = True
-        gs.return_value.has_openrouter = True
         gs.return_value.memory_default_days = 30
         gs.return_value.memory_search_top_k = 6
         n = await service.index_brief(
@@ -98,7 +106,10 @@ async def test_memory_skips_duplicate_index(pg_session_factory) -> None:
     settings = patch("app.memory.service.get_settings")
 
     async def fake_embed(texts: list[str]) -> list[list[float]]:
-        return [[0.5, 0.5, 0.0] for _ in texts]
+        vec = [0.0] * _TEST_EMBED_DIM
+        vec[0] = 0.5
+        vec[1] = 0.5
+        return [vec.copy() for _ in texts]
 
     with (
         settings as gs,
@@ -108,7 +119,6 @@ async def test_memory_skips_duplicate_index(pg_session_factory) -> None:
         ),
     ):
         gs.return_value.memory_enabled = True
-        gs.return_value.has_openrouter = True
         first = await service.index_brief(
             brief_id="run-dup",
             run_id="run-dup",

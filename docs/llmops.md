@@ -1,6 +1,6 @@
 # LLMOps and evaluation
 
-Every pipeline run is instrumented at runtime, persisted in Postgres, and exposed through the **Evaluation** tab and REST API. The goal is the same as in client LLMOps work: **see cost, latency, tool behaviour, and source coverage** so you can tune models and fix failures with data—not guesswork.
+Every pipeline run is instrumented at runtime, persisted in Postgres, and exposed through the **Evaluation** tab and REST API. The goal is to make **cost, latency, tool behaviour, and source coverage** visible so model routing and failure modes can be tuned from data—not guesswork.
 
 ## What is measured
 
@@ -72,7 +72,7 @@ The **Evaluation** tab provides:
 
 ### NBA Copilot run
 
-Copilot runs use the same schema as MoA runs so you can compare modes apples-to-apples.
+Copilot runs use the same schema as MoA runs for apples-to-apples comparison across modes.
 
 ![NBA Copilot — evaluation](images/copilot-evaluation.png)
 
@@ -105,7 +105,7 @@ Both share the same run id; the UI can correlate a live session with its row in 
 
 This repo uses a **first-party eval store** so the demo is self-contained (no extra SaaS, full control over schema and UI).
 
-On a client project, the same events map cleanly to standard stacks:
+The same events map cleanly to standard production stacks:
 
 - **Langfuse** — traces, generations, tool spans, cost;
 - **Phoenix / Arize** — eval datasets, drift, quality experiments;

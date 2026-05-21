@@ -85,7 +85,7 @@ MCP gives explicit interfaces and better portability. It also makes failures vis
 
 ### Why a first-party eval store (and not only Langfuse)?
 
-Postgres + an in-app dashboard keeps the repo self-contained and demoable without another SaaS. The event model (generations, tools, cost, failures) maps 1:1 to what Langfuse or OpenTelemetry would ingest on a client engagement — see [`llmops.md`](llmops.md).
+Postgres + an in-app dashboard keeps the repo self-contained and demoable without another SaaS. The event model (generations, tools, cost, failures) maps 1:1 to what Langfuse or OpenTelemetry would ingest in production — see [`llmops.md`](llmops.md).
 
 ## Testing and CI
 
@@ -101,6 +101,22 @@ GitHub Actions runs on every change: **Ruff**, **mypy**, **pytest**, and a **fro
 Live LLM and MCP subprocess runs are left to local/demo validation — documented trade-off in [`testing.md`](testing.md).
 
 [![CI](https://github.com/svensundell/nba_moa_agents/actions/workflows/ci.yml/badge.svg)](https://github.com/svensundell/nba_moa_agents/actions/workflows/ci.yml)
+
+## Production deployment (live)
+
+The app is publicly deployed with the planned stack and is currently running on:
+
+- Frontend (Vercel): `https://nba-moa-agents.vercel.app`
+- Backend (Railway): `https://nbamoaagents-production.up.railway.app`
+- Database (Supabase + `pgvector`)
+
+Current layout:
+
+- **Vercel** — React build with `VITE_API_BASE` pointing directly to Railway.
+- **Railway** — FastAPI + MCP subprocesses from `backend/Dockerfile`.
+- **Supabase** — Postgres with `pgvector` for eval + briefs memory.
+
+For the shared hosted demo, visitors use **bring-your-own-key** (OpenRouter key in the Access screen) so LLM spend stays on their account. The deployment doc covers secrets, CORS/WS setup, `AUTO_MIGRATE=false` in prod, optional auth/rate limits, and rollback.
 
 ## Reliability and quality engineering
 
@@ -124,12 +140,13 @@ The project delivers:
 - **RAG/memory**: chunking, embeddings, vector retrieval, temporal context reuse.
 - **LLMOps**: per-run cost/latency/tool metrics, failure rates, MoA vs Copilot comparison, persisted history + Evaluation UI ([`llmops.md`](llmops.md)).
 - **Backend engineering**: FastAPI, async Python, Postgres/pgvector, migration discipline, pytest + CI ([`testing.md`](testing.md)).
+- **Delivery / ops**: Docker Compose, deployment topology and demo safeguards ([`deployment.md`](deployment.md)).
 - **Product engineering**: frontend traceability UX, live observability surfaces, explainability.
 
 ## What is intentionally not implemented yet
 
 - Scheduled and automatically distributed Daily Brief workflow (cron/email/Slack).
-- Controlled public deployment tier for demo traffic and quota protection.
+- Auth/rate-limit hardening for sustained public traffic (BYOK is already live).
 
 Those are productization choices, not architectural blockers.
 

@@ -22,12 +22,10 @@ class Settings(BaseSettings):
     app_env: str = Field(default="development")
     log_level: str = Field(default="INFO")
     allowed_origins: str = Field(default="http://localhost:5173")
+    # When set, clients must send Authorization: Bearer <token> or X-App-Access-Token.
+    app_access_token: str = Field(default="")
 
-    openrouter_api_key: str = Field(default="")
-    openrouter_base_url: str = Field(default="https://openrouter.ai/api/v1")
-    brave_api_key: str = Field(default="")
     balldontlie_api_key: str = Field(default="")
-    reddit_user_agent: str = Field(default="")
 
     # Primary SQL database for eval + memory stores.
     database_url: str = Field(default="postgresql+asyncpg://postgres:postgres@localhost:5432/nba")
@@ -44,14 +42,6 @@ class Settings(BaseSettings):
     @property
     def origins(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
-
-    @property
-    def has_openrouter(self) -> bool:
-        return bool(self.openrouter_api_key.strip())
-
-    @property
-    def has_brave(self) -> bool:
-        return bool(self.brave_api_key)
 
     @property
     def has_balldontlie(self) -> bool:

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import Literal
 
-from fastapi import APIRouter, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from loguru import logger
 
 from app.api.runner import run_full, run_streaming
@@ -17,6 +17,11 @@ from app.api.schemas import (
     RunResult,
 )
 from app.core.config import get_settings
+from app.core.credentials import (
+    resolve_openrouter_api_key,
+    use_openrouter_api_key,
+    verify_app_access,
+)
 from app.db.session import ping as db_ping
 from app.eval.repository import get_repository
 from app.eval.schemas import DashboardSummary, RunSummary
@@ -33,6 +38,20 @@ def _normalise_language(language: str | None) -> Literal["en", "fr"]:
     return "fr" if value == "fr" else "en"
 
 
+def _require_run_access(
+    x_openrouter_key: str | None = Header(default=None, alias="X-OpenRouter-Key"),
+    x_app_access_token: str | None = Header(default=None, alias="X-App-Access-Token"),
+    authorization: str | None = Header(default=None),
+) -> str:
+    verify_app_access(header_token=x_app_access_token, authorization=authorization)
+    return resolve_openrouter_api_key(x_openrouter_key)
+
+
+def _ws_error_message(exc: HTTPException) -> str:
+    detail = exc.detail
+    return detail if isinstance(detail, str) else str(detail)
+
+
 @router.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
     settings = get_settings()
@@ -44,12 +63,13 @@ async def health() -> HealthResponse:
         database_ok = False
     return HealthResponse(
         status="ok" if database_ok else "degraded",
-        has_openrouter=settings.has_openrouter,
+        openrouter_byok=True,
         has_balldontlie=settings.has_balldontlie,
         database_ok=database_ok,
         mcp_initialised=mcp_registry.initialised,
         mcp_servers=mcp_registry.server_names,
         mcp_tools=mcp_registry.tool_names,
+        app_access_required=bool(settings.app_access_token.strip()),
     )
 
 
@@ -70,31 +90,43 @@ async def agents() -> dict:
 
 
 @router.post("/brief", response_model=RunResult)
-async def brief(req: BriefRequest) -> RunResult:
-    return await run_full("brief", date=req.date, language=_normalise_language(req.language))
+async def brief(
+    req: BriefRequest,
+    api_key: str = Depends(_require_run_access),
+) -> RunResult:
+    with use_openrouter_api_key(api_key):
+        return await run_full("brief", date=req.date, language=_normalise_language(req.language))
 
 
 @router.post("/query", response_model=RunResult)
-async def query(req: QueryRequest) -> RunResult:
+async def query(
+    req: QueryRequest,
+    api_key: str = Depends(_require_run_access),
+) -> RunResult:
     if not req.messages and not req.query.strip():
         raise HTTPException(status_code=422, detail="Provide `query` or non-empty `messages`.")
-    return await run_full(
-        "query",
-        query=req.query,
-        messages=[m.model_dump(mode="json") for m in req.messages],
-        date=req.date,
-        language=_normalise_language(req.language),
-    )
+    with use_openrouter_api_key(api_key):
+        return await run_full(
+            "query",
+            query=req.query,
+            messages=[m.model_dump(mode="json") for m in req.messages],
+            date=req.date,
+            language=_normalise_language(req.language),
+        )
 
 
 @router.post("/compare", response_model=RunResult)
-async def compare(req: CompareRequest) -> RunResult:
-    return await run_full(
-        "compare",
-        query=req.query,
-        date=req.date,
-        language=_normalise_language(req.language),
-    )
+async def compare(
+    req: CompareRequest,
+    api_key: str = Depends(_require_run_access),
+) -> RunResult:
+    with use_openrouter_api_key(api_key):
+        return await run_full(
+            "compare",
+            query=req.query,
+            date=req.date,
+            language=_normalise_language(req.language),
+        )
 
 
 @router.get("/runs", response_model=list[RunSummary])
@@ -154,13 +186,17 @@ async def list_memory_briefs(
 
 
 @router.post("/memory/search", response_model=MemorySearchResult)
-async def search_memory(req: MemorySearchRequest) -> MemorySearchResult:
+async def search_memory(
+    req: MemorySearchRequest,
+    api_key: str = Depends(_require_run_access),
+) -> MemorySearchResult:
     """Semantic search over archived Daily Brief chunks (debug / UI)."""
     try:
         memory = get_memory_service()
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return await memory.search(req.query, days=req.days, limit=req.limit)
+    with use_openrouter_api_key(api_key):
+        return await memory.search(req.query, days=req.days, limit=req.limit)
 
 
 @router.websocket("/ws/run")
@@ -192,14 +228,25 @@ async def ws_run(websocket: WebSocket) -> None:
             await websocket.close()
             return
 
-        async for frame in run_streaming(
-            mode,
-            query=payload.get("query", ""),
-            messages=payload.get("messages"),
-            date=payload.get("date"),
-            language=_normalise_language(str(payload.get("language", "en"))),
-        ):
-            await websocket.send_json(frame)
+        try:
+            verify_app_access(header_token=str(payload.get("app_access_token") or ""))
+            api_key = resolve_openrouter_api_key(
+                str(payload.get("openrouter_api_key") or "") or None
+            )
+        except HTTPException as exc:
+            await websocket.send_json({"kind": "error", "message": _ws_error_message(exc)})
+            await websocket.close()
+            return
+
+        with use_openrouter_api_key(api_key):
+            async for frame in run_streaming(
+                mode,
+                query=payload.get("query", ""),
+                messages=payload.get("messages"),
+                date=payload.get("date"),
+                language=_normalise_language(str(payload.get("language", "en"))),
+            ):
+                await websocket.send_json(frame)
 
         await websocket.close()
     except WebSocketDisconnect:

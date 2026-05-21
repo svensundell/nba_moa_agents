@@ -17,10 +17,22 @@ _engine: AsyncEngine | None = None
 _session_factory: async_sessionmaker[AsyncSession] | None = None
 
 
+def connect_args_for_url(database_url: str) -> dict[str, object]:
+    """Driver extras for hosted Postgres (Supabase requires SSL)."""
+    if "supabase.co" in database_url:
+        return {"ssl": "require"}
+    return {}
+
+
 def configure_engine(database_url: str, *, echo: bool = False) -> AsyncEngine:
     """Configure (or replace) the shared async engine."""
     global _engine, _session_factory
-    _engine = create_async_engine(database_url, echo=echo, pool_pre_ping=True)
+    _engine = create_async_engine(
+        database_url,
+        echo=echo,
+        pool_pre_ping=True,
+        connect_args=connect_args_for_url(database_url),
+    )
     _session_factory = async_sessionmaker(_engine, expire_on_commit=False)
     return _engine
 

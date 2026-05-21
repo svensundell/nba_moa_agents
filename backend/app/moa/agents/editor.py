@@ -128,4 +128,3 @@ async def editor_agent(state: MoAState) -> dict:
         "final_brief": content,
         "events": [event("editor", "aggregator", "done", content="brief ready", model=model)],
     }
-

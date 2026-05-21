@@ -20,7 +20,7 @@ help:
 	@echo "  migrate          Alembic upgrade head"
 	@echo "  docker-up        docker compose up --build"
 	@echo "  docker-down      docker compose down"
-	@echo "  eval             CLI Daily Brief demo (needs OPENROUTER_API_KEY)"
+	@echo "  eval             CLI Daily Brief demo (export OPENROUTER_API_KEY for BYOK)"
 
 install:
 	cd $(BACKEND) && uv sync --extra dev

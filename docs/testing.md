@@ -46,7 +46,7 @@ Integration tests (`test_eval`, `test_memory`) **skip** when `TEST_DATABASE_URL`
 | Golden prompt regression | No frozen dataset yet; eval dashboard supports manual comparison |
 | Frontend component tests | Build + typecheck via `tsc`/`vite build` is the current gate |
 
-For manual validation: run the app locally (`make dev`) or `python -m scripts.demo brief` with `OPENROUTER_API_KEY` set.
+For manual validation: run the app locally (`make dev`) and enter your OpenRouter key in the Access screen, or `export OPENROUTER_API_KEY=…` then `python -m scripts.demo brief`.
 
 ## Run locally
 

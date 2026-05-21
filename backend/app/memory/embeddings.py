@@ -8,6 +8,8 @@ from functools import lru_cache
 import httpx
 
 from app.core.config import get_settings
+from app.core.credentials import openrouter_key_for_llm
+from app.core.openrouter import OPENROUTER_BASE_URL
 
 DEFAULT_EMBEDDING_MODEL = "openai/text-embedding-3-small"
 
@@ -22,13 +24,11 @@ async def embed_texts(texts: list[str]) -> list[list[float]]:
     """Embed a batch of strings via OpenRouter's OpenAI-compatible API."""
     if not texts:
         return []
-    settings = get_settings()
-    if not settings.has_openrouter:
-        raise RuntimeError("OPENROUTER_API_KEY is required for brief memory embeddings.")
+    api_key = openrouter_key_for_llm()
 
-    url = f"{settings.openrouter_base_url.rstrip('/')}/embeddings"
+    url = f"{OPENROUTER_BASE_URL.rstrip('/')}/embeddings"
     headers = {
-        "Authorization": f"Bearer {settings.openrouter_api_key}",
+        "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
     payload = {"model": embedding_model_id(), "input": texts}

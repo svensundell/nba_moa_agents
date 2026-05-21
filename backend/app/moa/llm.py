@@ -7,7 +7,8 @@ from dataclasses import dataclass
 from langchain_core.language_models.chat_models import BaseChatModel
 from langchain_openai import ChatOpenAI
 
-from app.core.config import get_settings
+from app.core.credentials import openrouter_key_for_llm
+from app.core.openrouter import OPENROUTER_BASE_URL
 
 
 @dataclass(frozen=True)
@@ -64,15 +65,13 @@ DEFAULT_MODEL = "balanced"
 
 def get_model(name: str, *, temperature: float | None = None) -> BaseChatModel:
     """Instantiate a chat model for a logical model name via OpenRouter."""
-    settings = get_settings()
-    if not settings.has_openrouter:
-        raise RuntimeError("OPENROUTER_API_KEY is not set. Add it to your .env file.")
+    api_key = openrouter_key_for_llm()
     spec = MODEL_REGISTRY.get(name) or MODEL_REGISTRY[DEFAULT_MODEL]
     temp = temperature if temperature is not None else spec.temperature
     return ChatOpenAI(
         model=spec.model_id,
-        api_key=settings.openrouter_api_key,
-        base_url=settings.openrouter_base_url,
+        api_key=api_key,
+        base_url=OPENROUTER_BASE_URL,
         temperature=temp,
         max_tokens=spec.max_tokens,
     )

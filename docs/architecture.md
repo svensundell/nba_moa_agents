@@ -11,8 +11,10 @@
    the three custom MCP servers shipped with the repo (`nba_stats`, `reddit`,
    `espn`). There are *no* HTTP fallbacks: agents that can't reach their tool
    emit an explicit error event and the pipeline degrades gracefully.
-3. **Demoable** — anyone can clone, set an OpenRouter API key, run
-   `docker compose up`, and watch the agents work live on `localhost:5173`.
+3. **Demoable (local + live)** — anyone can clone and run
+   `docker compose up` on `localhost:5173`, and the same architecture is
+   deployed publicly (`https://nba-moa-agents.vercel.app` frontend,
+   `https://nbamoaagents-production.up.railway.app` backend) with BYOK.
 
 ## Pipeline
 

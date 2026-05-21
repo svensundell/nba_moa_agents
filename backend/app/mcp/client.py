@@ -70,7 +70,6 @@ def _server_config() -> dict[str, dict[str, Any]]:
             "env": {
                 **os.environ,
                 "BALLDONTLIE_API_KEY": settings.balldontlie_api_key,
-                "REDDIT_USER_AGENT": settings.reddit_user_agent,
             },
         }
     return cfg

@@ -149,10 +149,28 @@ export interface ChatMessage {
 
 export type LanguageCode = "en" | "fr";
 
-const base = "/api";
+import { authHeaders, getAppAccessToken, getOpenRouterKey } from "./credentials";
+
+/** Local dev: `/api` (Vite proxy). Production: `VITE_API_BASE=https://….railway.app/api` */
+function httpApiBase(): string {
+  const env = import.meta.env.VITE_API_BASE?.trim();
+  if (env) return env.replace(/\/$/, "");
+  return "/api";
+}
+
+/** WS: `VITE_WS_API_BASE` or derived from `VITE_API_BASE` (Vercel rewrites do not proxy WebSockets). */
+function wsApiBase(): string {
+  const ws = import.meta.env.VITE_WS_API_BASE?.trim();
+  if (ws) return ws.replace(/\/$/, "");
+  const http = httpApiBase();
+  if (http.startsWith("https://")) return http.replace(/^https:/, "wss:");
+  if (http.startsWith("http://")) return http.replace(/^http:/, "ws:");
+  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+  return `${proto}//${window.location.host}${http}`;
+}
 
 export async function fetchAgents(): Promise<AgentMeta[]> {
-  const r = await fetch(`${base}/agents`);
+  const r = await fetch(`${httpApiBase()}/agents`);
   if (!r.ok) throw new Error(`/agents failed: ${r.status}`);
   const data = await r.json();
   return data.agents;
@@ -160,16 +178,17 @@ export async function fetchAgents(): Promise<AgentMeta[]> {
 
 export interface HealthInfo {
   status?: "ok" | "degraded";
-  has_openrouter: boolean;
+  openrouter_byok?: boolean;
   has_balldontlie: boolean;
   database_ok?: boolean;
   mcp_initialised: boolean;
   mcp_servers: string[];
   mcp_tools: string[];
+  app_access_required?: boolean;
 }
 
 export async function fetchHealth(): Promise<HealthInfo | null> {
-  const r = await fetch(`${base}/health`);
+  const r = await fetch(`${httpApiBase()}/health`);
   if (!r.ok) return null;
   const data = (await r.json()) as HealthInfo;
   if (!Array.isArray(data.mcp_tools)) return null;
@@ -209,15 +228,15 @@ export async function fetchRuns(opts?: {
   if (opts?.limit) params.set("limit", String(opts.limit));
   if (opts?.mode) params.set("mode", opts.mode);
   const suffix = params.toString();
-  const path = `${base}/runs${suffix ? `?${suffix}` : ""}`;
-  const r = await fetch(path);
+  const path = `${httpApiBase()}/runs${suffix ? `?${suffix}` : ""}`;
+  const r = await fetch(path, { headers: authHeaders() });
   if (!r.ok) throw apiError("/api/runs", r.status);
   return r.json();
 }
 
 export async function fetchRunDetail(runId: string): Promise<RunResult> {
-  const path = `${base}/runs/${encodeURIComponent(runId)}`;
-  const r = await fetch(path);
+  const path = `${httpApiBase()}/runs/${encodeURIComponent(runId)}`;
+  const r = await fetch(path, { headers: authHeaders() });
   if (!r.ok) throw apiError(path, r.status);
   return r.json();
 }
@@ -229,8 +248,8 @@ export async function fetchMetricsSummary(opts?: {
   const params = new URLSearchParams();
   params.set("last_n", String(opts?.lastN ?? 100));
   if (opts?.mode) params.set("mode", opts.mode);
-  const path = `${base}/metrics/summary?${params}`;
-  const r = await fetch(path);
+  const path = `${httpApiBase()}/metrics/summary?${params}`;
+  const r = await fetch(path, { headers: authHeaders() });
   if (!r.ok) throw apiError("/api/metrics/summary", r.status);
   return r.json();
 }
@@ -254,8 +273,7 @@ export interface RunOptions {
 }
 
 export function streamRun(opts: RunOptions): { close: () => void } {
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  const url = `${proto}//${window.location.host}${base}/ws/run`;
+  const url = `${wsApiBase()}/ws/run`;
   const ws = new WebSocket(url);
   let finished = false;
 
@@ -269,13 +287,15 @@ export function streamRun(opts: RunOptions): { close: () => void } {
     if (ws.readyState === WebSocket.CONNECTING) {
       ws.close();
       fail(
-        "Cannot reach backend (WebSocket timeout). Ensure the API is running on port 8000.",
+        "Cannot reach backend (WebSocket timeout). Set VITE_API_BASE on Vercel or run the API locally on :8000.",
       );
     }
   }, 12_000);
 
   ws.onopen = () => {
     window.clearTimeout(connectTimeout);
+    const openrouterKey = getOpenRouterKey();
+    const appToken = getAppAccessToken();
     ws.send(
       JSON.stringify({
         mode: opts.mode,
@@ -283,6 +303,8 @@ export function streamRun(opts: RunOptions): { close: () => void } {
         query: opts.query ?? "",
         messages: opts.messages ?? [],
         date: opts.date ?? null,
+        ...(openrouterKey ? { openrouter_api_key: openrouterKey } : {}),
+        ...(appToken ? { app_access_token: appToken } : {}),
       }),
     );
   };
@@ -302,7 +324,9 @@ export function streamRun(opts: RunOptions): { close: () => void } {
   ws.onerror = (e) => {
     console.error("websocket error", e);
     window.clearTimeout(connectTimeout);
-    fail("WebSocket error. Is the backend running (uvicorn on :8000)?");
+    fail(
+      "WebSocket error. On Vercel, set VITE_API_BASE to your Railway https API URL; locally, start uvicorn on :8000.",
+    );
   };
 
   ws.onclose = (ev) => {
