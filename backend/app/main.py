@@ -69,7 +69,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
 
     app = FastAPI(
-        title="NBA Mixture of Agents",
+        title="NBA MCP & Mixture of Agents",
         version=__version__,
         description=(
             "Mixture-of-Agents pipeline for NBA briefings & queries. "

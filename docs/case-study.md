@@ -1,4 +1,4 @@
-# Case Study — NBA MoA Agents
+# Case Study — NBA MCP & Mixture of Agents
 
 ## One-line summary
 

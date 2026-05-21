@@ -1,6 +1,6 @@
-# NBA MoA Agents
+# NBA MCP & Mixture of Agents
 
-> A **Mixture of Agents** system that produces a structured daily NBA briefing and includes **NBA Copilot** — a multi-turn, MCP-powered research chat — built with LangGraph, OpenRouter and the Model Context Protocol.
+> **MCP-native** Mixture-of-Agents for structured NBA briefings and **NBA Copilot** — a multi-turn research chat with 11 tools across 3 custom MCP servers, built with LangGraph and OpenRouter.
 
 [CI](https://github.com/svensundell/nba_moa_agents/actions/workflows/ci.yml)
 python
@@ -9,7 +9,15 @@ openrouter
 mcp
 license
 
-**Contents:** [Why](#why-this-project) · [Stack](#tech-stack) · [Case study](docs/case-study.md) · [LLMOps](docs/llmops.md) · [Testing](docs/testing.md) · [Deployment](docs/deployment.md) · [Architecture](#architecture) · [Modes](#four-demo-modes) · [Trade-offs](#engineering-trade-offs) · [Screenshots](#screenshots) · [Quick start](#quick-start) · [Structure](#project-structure)
+**Contents:** [Preview](#product-preview) · [Why](#why-this-project) · [Stack](#tech-stack) · [Case study](docs/case-study.md) · [LLMOps](docs/llmops.md) · [Testing](docs/testing.md) · [Deployment](docs/deployment.md) · [Architecture](#architecture) · [Modes](#four-demo-modes) · [Trade-offs](#engineering-trade-offs) · [Quick start](#quick-start) · [Structure](#project-structure) · [Screenshots](#screenshots)
+
+## Product preview
+
+Live app: [nba-moa-agents.vercel.app](https://nba-moa-agents.vercel.app) · [API health](https://nbamoaagents-production.up.railway.app/api/health) · [Full screenshot gallery](#screenshots)
+
+| Daily Brief (MoA graph + trace) | NBA Copilot | MoA vs Copilot | Evaluation metrics |
+| --- | --- | --- | --- |
+| ![Daily Brief — graph and live trace](docs/images/daily-brief-graph.png) | ![NBA Copilot — chat](docs/images/copilot-chat.png) | ![MoA vs Copilot — side by side](docs/images/compare-side-by-side.png) | ![Evaluation dashboard — cost, latency, tool calls](docs/images/daily-brief-evaluation.png) |
 
 ## Why this project?
 
@@ -179,70 +187,6 @@ embedded via OpenRouter (`MEMORY_EMBEDDING_MODEL`), and stored in Postgres
 `MEMORY_DEFAULT_DAYS` days by default) so questions like *“Why is everyone
 talking about the Pacers this week?”* can combine **archived brief context**
 with **live MCP data**. New briefs are indexed automatically after each successful Daily Brief run.
-
-## Screenshots
-
-Capture the app locally (`make dev` + `make dev-frontend`), then add PNGs under `[docs/images/](docs/images/)` and they render here:
-
-### Daily Brief
-
-
-| Agent graph, MCP timeline & live trace |
-| -------------------------------------- |
-| Daily Brief — agent graph and trace    |
-
-
-
-| Brief output (scores, news, stats) | Brief output (narrative & sources) |
-| ---------------------------------- | ---------------------------------- |
-| Daily Brief — output top           | Daily Brief — output and sources   |
-
-
-
-| Evaluation dashboard     |
-| ------------------------ |
-| Daily Brief — evaluation |
-
-
-### NBA Copilot
-
-Multi-turn chat with MCP tools and brief memory (`search_brief_memory`). Each run is recorded in the same **Evaluation** store as Daily Brief (cost, latency, tool calls, sources).
-
-
-| Chat & streamed answer |
-| ---------------------- |
-| NBA Copilot — chat     |
-
-
-
-| MCP timeline, live trace & sources |
-| ---------------------------------- |
-| NBA Copilot — trace and sources    |
-
-
-
-| Evaluation dashboard (Brief + Copilot runs) |
-| ------------------------------------------- |
-| NBA Copilot — evaluation                    |
-
-
-### MoA vs NBA Copilot
-
-Same prompt, two pipelines in parallel: **Daily Brief MoA** (deterministic LangGraph) vs **NBA Copilot** (tool-using agent, all MCP tools). Costs are split in the Evaluation tab (`moa_cost_usd` vs `baseline_cost_usd`).
-
-
-| Side-by-side answers              |
-| --------------------------------- |
-| MoA vs NBA Copilot — side by side |
-
-
-
-| Evaluation dashboard (Compare runs) |
-| ----------------------------------- |
-| MoA vs NBA Copilot — evaluation     |
-
-
-**Demo video** — TODO 
 
 ## Quick start
 
@@ -424,6 +368,48 @@ The three MCP servers in `mcp_servers/` are reusable on their own — drop them 
 - Brief history UI (browse indexed briefs in the frontend)
 - Public deployment live (Railway / Vercel / Supabase) — runbook in `[docs/deployment.md](docs/deployment.md)`
 - Public demo hardening (auth gate, quotas, optional offline fixture mode)
+
+## Screenshots
+
+Captured from the live app ([nba-moa-agents.vercel.app](https://nba-moa-agents.vercel.app)). Full set in [`docs/images/`](docs/images/).
+
+### Daily Brief
+
+Agent graph, MCP timeline, and live trace while the MoA pipeline runs:
+
+![Daily Brief — agent graph and trace](docs/images/daily-brief-graph.png)
+
+Structured brief output (top sections and sources panel):
+
+| | |
+|:---:|:---:|
+| ![Daily Brief — output (scores, news, stats)](docs/images/daily-brief-output-top.png) | ![Daily Brief — output and sources](docs/images/daily-brief-output-sources.png) |
+
+Evaluation dashboard for a Brief run (cost, latency, tool calls):
+
+![Daily Brief — evaluation](docs/images/daily-brief-evaluation.png)
+
+### NBA Copilot
+
+Multi-turn chat with MCP tools and brief memory (`search_brief_memory`). Each run is recorded in the same **Evaluation** store as Daily Brief.
+
+![NBA Copilot — chat](docs/images/copilot-chat.png)
+
+MCP timeline, live trace, and sources bibliography:
+
+![NBA Copilot — trace and sources](docs/images/copilot-trace-sources.png)
+
+![NBA Copilot — evaluation](docs/images/copilot-evaluation.png)
+
+### MoA vs NBA Copilot
+
+Same prompt, two pipelines in parallel: **Daily Brief MoA** (deterministic LangGraph) vs **NBA Copilot** (tool-using agent, all MCP tools). Costs are split in the Evaluation tab (`moa_cost_usd` vs `baseline_cost_usd`).
+
+![MoA vs NBA Copilot — side by side](docs/images/compare-side-by-side.png)
+
+![MoA vs NBA Copilot — evaluation](docs/images/compare-evaluation.png)
+
+**Demo video** — TODO
 
 ## License
 

@@ -1,4 +1,4 @@
-"""LangGraph wiring for the NBA Mixture of Agents pipeline.
+"""LangGraph wiring for the NBA MCP & Mixture of Agents pipeline.
 
 Topology::
 

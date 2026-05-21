@@ -1,7 +1,7 @@
 [project]
 name = "nba-moa-agents"
 version = "0.1.0"
-description = "Mixture of Agents system for NBA news, stats, and daily briefings"
+description = "MCP-native Mixture of Agents for NBA briefings, stats, and NBA Copilot"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "Sven Juge" }]

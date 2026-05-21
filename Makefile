@@ -1,4 +1,4 @@
-# NBA MoA Agents — common dev commands (local or CI).
+# NBA MCP & Mixture of Agents — common dev commands (local or CI).
 # Requires: uv (https://docs.astral.sh/uv/), Node 20+, Docker for postgres/docker targets.
 
 .PHONY: help install dev dev-frontend test test-backend test-integration lint format typecheck migrate docker-up docker-down eval
