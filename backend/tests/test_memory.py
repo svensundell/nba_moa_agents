@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import date
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -83,7 +84,7 @@ async def test_memory_repository_and_search(pg_session_factory) -> None:
         n = await service.index_brief(
             brief_id="run-1",
             run_id="run-1",
-            date_value="2026-05-18",
+            date_value=date.today().isoformat(),
             language="en",
             markdown=SAMPLE_BRIEF,
             force=True,
