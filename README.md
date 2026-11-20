@@ -13,7 +13,7 @@ license
 
 ## Product preview
 
-Live app: [nba-moa-agents.vercel.app](https://nba-moa-agents.vercel.app) · [API health](https://nbamoaagents-production.up.railway.app/api/health) · [Full screenshot gallery](#screenshots)
+Live app: [NBA on Azure](https://nba-moa-sven.azurewebsites.net) · [API health](https://nba-moa-sven.azurewebsites.net/api/health) · [Full screenshot gallery](#screenshots)
 
 | Daily Brief (MoA graph + trace) | NBA Copilot | MoA vs Copilot | Evaluation metrics |
 | --- | --- | --- | --- |
@@ -37,13 +37,13 @@ The implementation treats that workflow as a real system: runs are measured, sou
 
 Live deployment:
 
-- Frontend: `https://nba-moa-agents.vercel.app`
-- Backend health: `https://nbamoaagents-production.up.railway.app/api/health`
+- Frontend: [Azure site](https://nba-moa-sven.azurewebsites.net) · [Vercel entry point](https://nba-moa-agents.vercel.app)
+- Backend health: `https://nba-moa-sven.azurewebsites.net/api/health`
 - Runtime model: BYOK (visitor provides OpenRouter key in-app)
 
 Planned next: scheduled briefs, Copilot citation post-pass, and public-traffic hardening (auth/rate limits). See [Roadmap](#roadmap).
 
-Extended docs: `[case-study.md](docs/case-study.md)` (narrative), `[llmops.md](docs/llmops.md)` (evaluation), `[testing.md](docs/testing.md)` (CI), `[deployment.md](docs/deployment.md)` (Railway / Vercel / Supabase).
+Extended docs: `[case-study.md](docs/case-study.md)` (narrative), `[llmops.md](docs/llmops.md)` (evaluation), `[testing.md](docs/testing.md)` (CI), `[deployment.md](docs/deployment.md)` (Azure hosting and earlier deployment).
 
 ## Tech stack
 
@@ -318,7 +318,7 @@ nba_moa_agents/
     ├── case-study.md          Portfolio narrative (problem → architecture → results)
     ├── llmops.md              Evaluation metrics, instrumentation, dashboard
     ├── testing.md             Test matrix, CI pipeline, local commands
-    ├── deployment.md          Railway / Vercel / Supabase demo topology
+    ├── deployment.md          Azure and legacy demo topology
     └── images/                README screenshots (daily-brief-*, copilot-*, compare-*)
 ```
 
@@ -366,7 +366,7 @@ The three MCP servers in `mcp_servers/` are reusable on their own — drop them 
 - Click arbitrary phrase → tool output (semantic trace-back, not only `[n]`)
 - Scheduled daily briefing (cron + email/Slack)
 - Brief history UI (browse indexed briefs in the frontend)
-- Public deployment live (Railway / Vercel / Supabase) — runbook in `[docs/deployment.md](docs/deployment.md)`
+- Public deployment on Azure App Service and PostgreSQL — runbook in `[docs/deployment.md](docs/deployment.md)`
 - Public demo hardening (auth gate, quotas, optional offline fixture mode)
 
 ## Screenshots

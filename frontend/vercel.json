@@ -1,8 +1,9 @@
 {
+  "buildCommand": "VITE_API_BASE=https://nba-moa-sven.azurewebsites.net/api VITE_WS_API_BASE=wss://nba-moa-sven.azurewebsites.net/api npm run build",
   "rewrites": [
     {
       "source": "/api/:path*",
-      "destination": "https://nbamoaagents-production.up.railway.app/api/:path*"
+      "destination": "https://nba-moa-sven.azurewebsites.net/api/:path*"
     }
   ]
 }

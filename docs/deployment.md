@@ -1,20 +1,10 @@
-# Deployment runbook (live)
+# Deployment runbook
 
-Runs locally and via Docker Compose, and now also on a public stack:
-**Railway** (API + MCP), **Vercel** (frontend), and **Supabase** (Postgres + `pgvector`).
+The React site, FastAPI, the agents and their MCP servers run on Azure App Service. Azure Database for PostgreSQL stores the runs and indexed briefs. Visitors enter their own OpenRouter key in the site. [Azure deployment instructions](../deploy/azure/README.md) · [NBA site](https://nba-moa-sven.azurewebsites.net) · [Live health](https://nba-moa-sven.azurewebsites.net/api/health)
 
-## Current status
+## Earlier Railway, Vercel and Supabase deployment
 
-The app is live:
-
-- Frontend: `https://nba-moa-agents.vercel.app`
-- Backend health: `https://nbamoaagents-production.up.railway.app/api/health`
-
-The deployed setup uses BYOK (OpenRouter key entered by the visitor in the Access screen), Postgres on Supabase, and MCP servers started inside the Railway container.
-
-A demo environment can be provisioned quickly when needed (new Railway service + Vercel project + Supabase instance, env vars, `alembic upgrade head`, smoke run). For a shared hosted demo, **bring-your-own-key** (visitor supplies an OpenRouter key in the UI or `X-OpenRouter-Key`) avoids billing LLM usage to the project owner; optional rate limits still apply per IP or app token.
-
-This file stays as the runbook for reprovisioning / rollback / hardening.
+The instructions below describe the original deployment and its configuration.
 
 ## Target topology
 

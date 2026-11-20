@@ -6,11 +6,12 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from loguru import logger
 
 from app import __version__
 from app.api.routes import router
-from app.core.config import get_settings
+from app.core.config import PROJECT_ROOT, get_settings
 from app.core.logging import configure_logging
 from app.db import close_engine, configure_engine, get_session_factory, ping, upgrade_head
 from app.eval.repository import configure_repository as configure_eval_repository
@@ -87,6 +88,12 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(router, prefix="/api")
+
+    if settings.serve_frontend:
+        app.mount(
+            "/", StaticFiles(directory=PROJECT_ROOT / "frontend" / "dist", html=True), name="site"
+        )
+        return app
 
     @app.get("/")
     async def root() -> dict:

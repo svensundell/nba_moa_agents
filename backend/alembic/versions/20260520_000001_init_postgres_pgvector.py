@@ -15,7 +15,11 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS vector")
+    # Managed PostgreSQL can reserve CREATE EXTENSION for administrators,
+    # even when IF NOT EXISTS would skip an already-installed extension.
+    installed = op.get_bind().scalar(sa.text("SELECT 1 FROM pg_extension WHERE extname = 'vector'"))
+    if not installed:
+        op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
     op.create_table(
         "runs",

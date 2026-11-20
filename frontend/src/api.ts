@@ -151,7 +151,7 @@ export type LanguageCode = "en" | "fr";
 
 import { authHeaders, getAppAccessToken, getOpenRouterKey } from "./credentials";
 
-/** Local dev: `/api` (Vite proxy). Production: `VITE_API_BASE=https://….railway.app/api` */
+/** Local dev: `/api` (Vite proxy). Production: `VITE_API_BASE=https://<api-host>/api` */
 function httpApiBase(): string {
   const env = import.meta.env.VITE_API_BASE?.trim();
   if (env) return env.replace(/\/$/, "");
@@ -287,7 +287,7 @@ export function streamRun(opts: RunOptions): { close: () => void } {
     if (ws.readyState === WebSocket.CONNECTING) {
       ws.close();
       fail(
-        "Cannot reach backend (WebSocket timeout). Set VITE_API_BASE on Vercel or run the API locally on :8000.",
+        "The API did not open the live connection in time. Please retry.",
       );
     }
   }, 12_000);
@@ -325,7 +325,7 @@ export function streamRun(opts: RunOptions): { close: () => void } {
     console.error("websocket error", e);
     window.clearTimeout(connectTimeout);
     fail(
-      "WebSocket error. On Vercel, set VITE_API_BASE to your Railway https API URL; locally, start uvicorn on :8000.",
+      "Could not open the live connection to the API. Check the backend status and try again.",
     );
   };
 

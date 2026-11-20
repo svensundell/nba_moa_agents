@@ -20,6 +20,7 @@ class Settings(BaseSettings):
     )
 
     app_env: str = Field(default="development")
+    serve_frontend: bool = False
     log_level: str = Field(default="INFO")
     allowed_origins: str = Field(default="http://localhost:5173")
     # When set, clients must send Authorization: Bearer <token> or X-App-Access-Token.
