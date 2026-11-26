@@ -6,7 +6,7 @@ import {
 } from "./api";
 import { getOpenRouterKey, hasRunCredentials } from "./credentials";
 import { AccessGate } from "./components/AccessGate";
-import type { AgentStatus } from "./components/AgentFlow";
+import type { AgentStatus, FlowProps } from "./components/AgentFlow";
 import { CitedMarkdown } from "./components/CitedMarkdown";
 
 import { EventLog } from "./components/EventLog";
@@ -404,10 +404,14 @@ export default function App() {
               {result && <SourcesBibliography citations={result.source_citations} language={language} activeId={citation} />}
               {(currentRunning || traceEvents.length > 0) && <Trace events={traceEvents} metrics={result?.metrics} t={t} language={language} open={currentRunning || citation != null} />}
               {result?.metrics && <RunMetricsPanel metrics={result.metrics} language={language} />}
-              {(view === "brief" || view === "compare") && <details className="card">
-                <summary className="section-title">{language === "fr" ? "Graphe des agents" : "Agent graph"}</summary>
-                <Suspense fallback={<p>{t.loading}</p>}><AgentFlow statuses={statuses} models={models} /></Suspense>
-              </details>}
+              {(view === "brief" || view === "compare") && (
+                <AgentGraph
+                  title={language === "fr" ? "Graphe des agents" : "Agent graph"}
+                  loadingText={t.loading}
+                  statuses={statuses}
+                  models={models}
+                />
+              )}
             </>
           )}
           {view === "examples" && (
@@ -458,6 +462,21 @@ export default function App() {
         </footer>
       </main>
     </>
+  );
+}
+
+function AgentGraph({ title, loadingText, ...flow }: FlowProps & { title: string; loadingText: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <details className="card" onToggle={(event) => setOpen(event.currentTarget.open)}>
+      <summary className="section-title">{title}</summary>
+      {open && (
+        <Suspense fallback={<p>{loadingText}</p>}>
+          <AgentFlow {...flow} />
+        </Suspense>
+      )}
+    </details>
   );
 }
 

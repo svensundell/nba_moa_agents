@@ -152,6 +152,7 @@ export function AgentFlow({ statuses, models }: FlowProps) {
         nodes={nodes}
         edges={edges}
         fitView
+        minZoom={0.2}
         proOptions={{ hideAttribution: true }}
         nodesDraggable={false}
         nodesConnectable={false}
