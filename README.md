@@ -1,6 +1,6 @@
 # NBA MCP & Mixture of Agents
 
-> Sven Juge built an NBA research assistant that calls ESPN, balldontlie and Reddit through three custom MCP servers. LangGraph coordinates the daily brief, while NBA Copilot selects its own tools for open questions. Both show their sources and run metrics.
+> I built an NBA research assistant that calls ESPN, balldontlie and Reddit through three custom MCP servers. LangGraph coordinates the daily brief, while NBA Copilot selects its own tools for open questions. Both show their sources and run metrics.
 
 **[Try the Azure demo](https://nba-moa-sven.azurewebsites.net/)** · [Recorded Copilot run](https://nba-moa-sven.azurewebsites.net/?example=finals&lang=en) · [Recorded multi-agent brief](https://nba-moa-sven.azurewebsites.net/?example=brief&lang=en) · [CI](https://github.com/svensundell/nba_moa_agents/actions/workflows/ci.yml)
 

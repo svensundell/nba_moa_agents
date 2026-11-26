@@ -25,7 +25,7 @@ const COPY = {
   fr: {
     views: { query: "Copilot", brief: "Brief multi-agent", compare: "Comparaison", examples: "Exemples et qualité", history: "Mon historique" },
     headline: "La NBA, sources à l’appui.",
-    summary: "Sven Juge a construit un assistant NBA qui interroge ESPN, balldontlie et Reddit via MCP. Un graphe LangGraph orchestre le brief multi-agent. Chaque exécution expose les appels d’outils et les mesures.",
+    summary: "J’ai créé un assistant NBA qui interroge ESPN, balldontlie et Reddit via MCP. Un graphe LangGraph orchestre le brief multi-agent. Chaque exécution expose les appels d’outils et les mesures.",
     live: "Essayer la question en direct",
     recorded: "Voir l’exemple enregistré",
     game: "Finales NBA 2025 · Match 7",
@@ -67,7 +67,7 @@ const COPY = {
   en: {
     views: { query: "Copilot", brief: "Multi-agent brief", compare: "Compare", examples: "Examples & quality", history: "My history" },
     headline: "NBA answers you can verify.",
-    summary: "Sven Juge built an NBA assistant that queries ESPN, balldontlie and Reddit through MCP. A LangGraph workflow runs the multi-agent brief. Every run shows its tool calls and metrics.",
+    summary: "I built an NBA assistant that queries ESPN, balldontlie and Reddit through MCP. A LangGraph workflow runs the multi-agent brief. Every run shows its tool calls and metrics.",
     live: "Try the live question", recorded: "View the recorded example",
     game: "2025 NBA Finals · Game 7", finalScore: "Final score · June 22, 2025",
     placeholder: "Your NBA question",
