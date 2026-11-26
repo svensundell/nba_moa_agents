@@ -15,6 +15,7 @@ Run standalone:
 
 from __future__ import annotations
 
+import asyncio
 import datetime as dt
 from typing import Any
 
@@ -117,20 +118,28 @@ async def nba_injury_headlines(limit: int = 10) -> dict:
     }
 
 
-async def _espn_get(path: str, params: dict[str, Any] | None = None) -> dict:
-    async with httpx.AsyncClient(timeout=15.0) as client:
-        r = await client.get(f"{ESPN_SITE_API}{path}", params=params)
-        try:
-            r.raise_for_status()
-        except httpx.HTTPStatusError:
-            return {
-                "error": "espn_request_failed",
-                "status_code": r.status_code,
-                "path": path,
-                "params": params or {},
-                "message": r.text[:200],
-            }
-        return r.json()
+async def _espn_get(
+    path: str,
+    params: dict[str, Any] | None = None,
+    *,
+    retry: bool = False,
+) -> dict:
+    attempts = 2 if retry else 1
+    async with httpx.AsyncClient(timeout=6.0 if retry else 15.0) as client:
+        for attempt in range(attempts):
+            try:
+                response = await client.get(f"{ESPN_SITE_API}{path}", params=params)
+                response.raise_for_status()
+                return response.json()
+            except httpx.HTTPStatusError as exc:
+                status = exc.response.status_code
+                if status < 500 or attempt == attempts - 1:
+                    return {"error": "espn_request_failed", "status_code": status, "path": path}
+            except (httpx.RequestError, ValueError):
+                if attempt == attempts - 1:
+                    return {"error": "espn_request_failed", "path": path}
+            await asyncio.sleep(0.25)
+    return {"error": "espn_request_failed", "path": path}
 
 
 def _format_score_for_game(game: dict[str, Any]) -> dict[str, Any]:
@@ -179,7 +188,7 @@ async def nba_scoreboard(date: str | None = None) -> dict:
     """
     target = date or (dt.date.today() - dt.timedelta(days=1)).isoformat()
     espn_date = target.replace("-", "")
-    raw = await _espn_get("/scoreboard", params={"dates": espn_date})
+    raw = await _espn_get("/scoreboard", params={"dates": espn_date}, retry=True)
     if "error" in raw:
         return raw
     games = [_format_score_for_game(e) for e in raw.get("events", [])]

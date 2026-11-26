@@ -59,18 +59,23 @@ class MCPToolMissing(KeyError):  # noqa: N818 — explicit non-Error suffix is c
 def _server_config() -> dict[str, dict[str, Any]]:
     settings = get_settings()
     cfg: dict[str, dict[str, Any]] = {}
+    runtime_env = {
+        key: os.environ[key]
+        for key in ("PYTHONPATH", "SSL_CERT_FILE", "SSL_CERT_DIR")
+        if key in os.environ
+    }
     for name, path in SERVER_PATHS.items():
         if not path.exists():
             logger.warning(f"MCP server entrypoint missing for '{name}': {path}")
             continue
+        env = runtime_env.copy()
+        if name == "nba_stats" and settings.has_balldontlie:
+            env["BALLDONTLIE_API_KEY"] = settings.balldontlie_api_key
         cfg[name] = {
             "command": sys.executable,
             "args": [str(path)],
             "transport": "stdio",
-            "env": {
-                **{k: v for k, v in os.environ.items() if k.upper() != "DEMO_OPENROUTER_KEY"},
-                "BALLDONTLIE_API_KEY": settings.balldontlie_api_key,
-            },
+            "env": env,
         }
     return cfg
 

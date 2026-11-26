@@ -5,6 +5,8 @@ from __future__ import annotations
 import importlib.util
 from pathlib import Path
 
+import httpx
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -55,6 +57,28 @@ def test_espn_format_score_for_game() -> None:
     assert out["completed"] is True
     assert len(out["teams"]) == 2
     assert out["teams"][0]["abbrev"] in {"BOS", "LAL"}
+
+
+async def test_espn_scoreboard_retries_after_a_transient_failure(monkeypatch) -> None:
+    espn = _load_server("mcp_servers/espn/server.py")
+    attempts = 0
+    async_client = httpx.AsyncClient
+
+    def respond(request):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise httpx.ReadTimeout("temporary upstream timeout", request=request)
+        return httpx.Response(200, json={"events": []})
+
+    monkeypatch.setattr(
+        espn.httpx,
+        "AsyncClient",
+        lambda **kwargs: async_client(transport=httpx.MockTransport(respond), **kwargs),
+    )
+    score = await espn.nba_scoreboard("2025-06-22")
+    assert score["url"].endswith("/20250622")
+    assert attempts == 2
 
 
 def test_reddit_shape_post() -> None:

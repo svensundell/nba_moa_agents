@@ -45,6 +45,7 @@ const COPY = {
     answer: "Réponse", copilot: "Vous pouvez poursuivre avec une question de suivi.",
     exampleTitle: "Exécutions enregistrées", exampleIntro: "Ces exemples proviennent d’appels sur la démo Azure. Les durées, appels et jetons sont relevés pendant l’exécution. Les coûts sont calculés à partir des tarifs des modèles.",
     exampleFinals: "Finales 2025 · Copilot", exampleBrief: "Finales 2025 · Brief multi-agent (EN)",
+    liveFallback: "Le score en direct n’a pas pu être vérifié. Voici une réponse enregistrée.",
     captured: "Exécution enregistrée le", exampleError: "L’exemple est momentanément indisponible.", loading: "Chargement…",
     quality: "Limite observée dans ce brief",
     qualityNote: "Le résumé dit « triple-double », alors que sa propre ligne indique 29 points, 12 passes et 5 rebonds. Reddit a aussi refusé un appel. Un lien permet de vérifier la statistique.",
@@ -84,6 +85,7 @@ const COPY = {
     answer: "Answer", copilot: "You can ask a follow-up question.",
     exampleTitle: "Recorded runs", exampleIntro: "These examples come from real runs on the Azure demo. Runtime, calls and tokens are recorded during each run. Costs are calculated from model prices.",
     exampleFinals: "2025 Finals · Copilot", exampleBrief: "2025 Finals · Multi-agent brief (EN)",
+    liveFallback: "The live score could not be verified. Here is a recorded answer.",
     captured: "Recorded on", exampleError: "This example is temporarily unavailable.", loading: "Loading…",
     quality: "Limitation observed in this brief",
     qualityNote: "The summary calls this a triple-double, while its own stat line lists 29 points, 12 assists and 5 rebounds. Reddit also rejected a tool call. Check the official box score to verify the stat.",
@@ -140,6 +142,7 @@ export default function App() {
   const [models, setModels] = useState<Record<string, string>>({});
   const [active, setActive] = useState<{ mode: RunMode; since: number } | null>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [fallback, setFallback] = useState(false);
   const [error, setError] = useState<RunError | null>(null);
   const [citation, setCitation] = useState<number | null>(null);
   const [recorded, setRecorded] = useState<RunResult | null>(null);
@@ -148,7 +151,7 @@ export default function App() {
   const result = view === "examples" || view === "history" ? null : results[view] ?? null;
   const quotaEmpty = health?.demo_runs_remaining === 0 && !getOpenRouterKey();
   const ready = Boolean(health?.mcp_initialised && health.database_ok && hasRunCredentials(health) && !quotaEmpty);
-  const recordedPath = example === "brief" ? "/examples/brief-en.json" : `/examples/finals-${language}.json`;
+  const recordedPath = view === "examples" && example === "brief" ? "/examples/brief-en.json" : `/examples/finals-${language}.json`;
 
   function refreshHealth() { void fetchHealth().then(setHealth).catch(() => setHealth(null)); }
 
@@ -182,7 +185,7 @@ export default function App() {
   }, [active]);
 
   useEffect(() => {
-    if (view !== "examples") return;
+    if (view !== "examples" && (view !== "query" || !fallback)) return;
     const controller = new AbortController();
     setRecorded(null);
     setExampleError(false);
@@ -191,7 +194,7 @@ export default function App() {
       setRecorded(await response.json() as RunResult);
     }).catch(() => { if (!controller.signal.aborted) setExampleError(true); });
     return () => controller.abort();
-  }, [view, recordedPath]);
+  }, [view, recordedPath, fallback]);
 
   function move(next: View, sample: Example = "finals", scroll = false) {
     const search = next === "examples" ? `?example=${sample}` : next === "query" ? "/" : `?view=${next}`;
@@ -203,6 +206,7 @@ export default function App() {
   }
 
   function reset() {
+    setFallback(false);
     setMessages([]);
     setQuery("");
     setResults({});
@@ -245,6 +249,7 @@ export default function App() {
       return;
     }
     setError(null);
+    setFallback(false);
     setCitation(null);
     setResults((prev) => ({ ...prev, [mode]: undefined }));
     setStatuses({});
@@ -273,7 +278,11 @@ export default function App() {
         } else if (frame.kind === "result") {
           const response = frame.result;
           setResults((prev) => ({ ...prev, [mode]: response }));
-          if (mode === "query") setMessages([...nextMessages, { role: "assistant", content: response.final_brief }]);
+          if (mode === "query") {
+            const canVerify = response.source_citations?.length > 0;
+            setFallback(newConversation && !canVerify);
+            setMessages([...nextMessages, { role: "assistant", content: response.final_brief }]);
+          }
           setActive(null);
           refreshHealth();
         } else if (frame.kind === "error") {
@@ -282,6 +291,7 @@ export default function App() {
             setQuery(question);
           }
           setError(frame.code ?? "generation");
+          setFallback(newConversation);
           setActive(null);
           refreshHealth();
         }
@@ -382,6 +392,14 @@ export default function App() {
                 <span className="progress-dot" aria-hidden="true" />
                 {elapsed === 0 ? t.connecting : t.working} <span className="font-mono">{elapsed} s</span>
               </div>}
+              {view === "query" && fallback && <section className="space-y-3" aria-label={t.recorded}>
+                <p className="quality-note" role="status">{t.liveFallback}</p>
+                {recorded && <>
+                  <ResultContent result={recorded} t={t} onCitation={setCitation} />
+                  <SourcesBibliography citations={recorded.source_citations} language={language} activeId={citation} />
+                </>}
+                {!recorded && <button type="button" className="text-link" onClick={() => move("examples")}>{t.recorded}</button>}
+              </section>}
               {result && view !== "query" && <ResultContent result={result} t={t} onCitation={setCitation} />}
               {result && <SourcesBibliography citations={result.source_citations} language={language} activeId={citation} />}
               {(currentRunning || traceEvents.length > 0) && <Trace events={traceEvents} metrics={result?.metrics} t={t} language={language} open={currentRunning || citation != null} />}

@@ -68,3 +68,29 @@ def test_server_imports_in_fresh_process() -> None:
     import sys
 
     subprocess.run([sys.executable, "-c", "from app.main import app"], check=True)
+
+
+def test_mcp_children_receive_only_their_provider_credentials(monkeypatch) -> None:
+    from app.core.config import get_settings
+    from app.mcp.client import _server_config
+
+    monkeypatch.setenv("BALLDONTLIE_API_KEY", "local-provider-test-value")
+    monkeypatch.setenv("GOOGLE_OAUTH_CLIENT_SECRET", "local-identity-test-value")
+    monkeypatch.setenv("DEMO_OPENROUTER_KEY", "local-model-test-value")
+    monkeypatch.setenv("SESSION_SECRET", "local-session-test-value")
+    get_settings.cache_clear()
+    try:
+        servers = _server_config()
+        for name, config in servers.items():
+            assert (
+                not {
+                    "DEMO_OPENROUTER_KEY",
+                    "GOOGLE_OAUTH_CLIENT_SECRET",
+                    "SESSION_SECRET",
+                    "DATABASE_URL",
+                }
+                & config["env"].keys()
+            )
+            assert ("BALLDONTLIE_API_KEY" in config["env"]) == (name == "nba_stats")
+    finally:
+        get_settings.cache_clear()

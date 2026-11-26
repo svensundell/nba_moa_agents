@@ -6,7 +6,7 @@
 
 ## Try it in a minute
 
-1. Choose **Try the live question**. Copilot checks the June 22, 2025 ESPN scoreboard and cites its result. The Azure demo shares 20 sponsored requests per UTC day. Guests can run the demo without a key or account.
+1. Choose **Try the live question**. Copilot checks the June 22, 2025 ESPN scoreboard and cites its result. If the live score is unavailable, the demo labels and shows the recorded answer. The Azure demo shares 20 sponsored requests per UTC day. Guests can run the demo without a key or account.
 2. Open **Examples & quality** for real recorded runs with sources, tool traces and measured latency. One brief includes a documented factual inconsistency and a Reddit failure. Costs are calculated from model prices.
 3. Explore the [architecture](docs/architecture.md), [case study](docs/case-study.md), [evaluation and instrumentation](docs/llmops.md), [test suite](docs/testing.md) and [Azure deployment](deploy/azure/README.md).
 
