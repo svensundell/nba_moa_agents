@@ -39,7 +39,7 @@ Live deployment:
 
 - Frontend: [Azure site](https://nba-moa-sven.azurewebsites.net) · [Vercel entry point](https://nba-moa-agents.vercel.app)
 - Backend health: `https://nba-moa-sven.azurewebsites.net/api/health`
-- Runtime model: BYOK (visitor provides OpenRouter key in-app)
+- The public Azure demo includes 20 server-funded requests per UTC day, shared by all visitors. Open NBA Copilot and ask for a score to see the source and tool calls.
 
 Planned next: scheduled briefs, Copilot citation post-pass, and public-traffic hardening (auth/rate limits). See [Roadmap](#roadmap).
 
@@ -193,7 +193,7 @@ with **live MCP data**. New briefs are indexed automatically after each successf
 ### Prerequisites
 
 - Python 3.11+ and Node.js 20+ (local dev), **or** Docker + Docker Compose v2 (containerised run)
-- An [OpenRouter API key](https://openrouter.ai/) entered in the app Access screen (BYOK — not stored on the server)
+- An [OpenRouter API key](https://openrouter.ai/) entered in the app Access screen for local runs, or a server-side `DEMO_OPENROUTER_KEY` for a sponsored deployment
 - Optional: a [balldontlie API key](https://www.balldontlie.io/) for higher-quota NBA stats requests
 
 ### Run locally

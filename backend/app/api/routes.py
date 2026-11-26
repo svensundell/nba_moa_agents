@@ -38,13 +38,13 @@ def _normalise_language(language: str | None) -> Literal["en", "fr"]:
     return "fr" if value == "fr" else "en"
 
 
-def _require_run_access(
+async def _require_run_access(
     x_openrouter_key: str | None = Header(default=None, alias="X-OpenRouter-Key"),
     x_app_access_token: str | None = Header(default=None, alias="X-App-Access-Token"),
     authorization: str | None = Header(default=None),
 ) -> str:
     verify_app_access(header_token=x_app_access_token, authorization=authorization)
-    return resolve_openrouter_api_key(x_openrouter_key)
+    return await resolve_openrouter_api_key(x_openrouter_key)
 
 
 def _ws_error_message(exc: HTTPException) -> str:
@@ -64,6 +64,7 @@ async def health() -> HealthResponse:
     return HealthResponse(
         status="ok" if database_ok else "degraded",
         openrouter_byok=True,
+        sponsored_runs=bool(settings.demo_openrouter_key.get_secret_value().strip()),
         has_balldontlie=settings.has_balldontlie,
         database_ok=database_ok,
         mcp_initialised=mcp_registry.initialised,
@@ -230,7 +231,7 @@ async def ws_run(websocket: WebSocket) -> None:
 
         try:
             verify_app_access(header_token=str(payload.get("app_access_token") or ""))
-            api_key = resolve_openrouter_api_key(
+            api_key = await resolve_openrouter_api_key(
                 str(payload.get("openrouter_api_key") or "") or None
             )
         except HTTPException as exc:

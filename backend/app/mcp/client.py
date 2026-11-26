@@ -68,7 +68,7 @@ def _server_config() -> dict[str, dict[str, Any]]:
             "args": [str(path)],
             "transport": "stdio",
             "env": {
-                **os.environ,
+                **{k: v for k, v in os.environ.items() if k.upper() != "DEMO_OPENROUTER_KEY"},
                 "BALLDONTLIE_API_KEY": settings.balldontlie_api_key,
             },
         }

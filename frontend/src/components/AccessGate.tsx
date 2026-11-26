@@ -21,7 +21,9 @@ export function AccessGate({ health, onSaved }: Props) {
     <div className="card max-w-lg mx-auto space-y-4">
       <h2 className="text-lg font-semibold text-ink">Access</h2>
       <p className="text-sm text-muted">
-        LLM runs use your own OpenRouter key (BYOK). Billing stays on your OpenRouter account.
+        {health?.sponsored_runs
+          ? "Enter the app access token to continue."
+          : "LLM runs use your own OpenRouter key (BYOK). Billing stays on your OpenRouter account."}
       </p>
       {needsApp && (
         <label className="block space-y-1">
@@ -36,7 +38,8 @@ export function AccessGate({ health, onSaved }: Props) {
           />
         </label>
       )}
-      <label className="block space-y-1">
+      {!health?.sponsored_runs && (
+        <label className="block space-y-1">
           <span className="text-sm font-medium">OpenRouter API key</span>
           <input
             className="input w-full"
@@ -47,6 +50,7 @@ export function AccessGate({ health, onSaved }: Props) {
             placeholder="sk-or-v1-… from openrouter.ai/keys"
           />
         </label>
+      )}
       <button
         type="button"
         className="btn-primary w-full"

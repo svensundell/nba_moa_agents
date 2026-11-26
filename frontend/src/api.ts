@@ -179,6 +179,7 @@ export async function fetchAgents(): Promise<AgentMeta[]> {
 export interface HealthInfo {
   status?: "ok" | "degraded";
   openrouter_byok?: boolean;
+  sponsored_runs?: boolean;
   has_balldontlie: boolean;
   database_ok?: boolean;
   mcp_initialised: boolean;

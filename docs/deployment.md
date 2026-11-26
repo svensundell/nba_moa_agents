@@ -1,6 +1,6 @@
 # Deployment runbook
 
-The React site, FastAPI, the agents and their MCP servers run on Azure App Service. Azure Database for PostgreSQL stores the runs and indexed briefs. Visitors enter their own OpenRouter key in the site. [Azure deployment instructions](../deploy/azure/README.md) · [NBA site](https://nba-moa-sven.azurewebsites.net) · [Live health](https://nba-moa-sven.azurewebsites.net/api/health)
+The React site, FastAPI, the agents and their MCP servers run on Azure App Service. Azure Database for PostgreSQL stores the runs and indexed briefs. Visitors can run the live demo using the server-funded daily allowance. [Azure deployment instructions](../deploy/azure/README.md) · [NBA site](https://nba-moa-sven.azurewebsites.net) · [Live health](https://nba-moa-sven.azurewebsites.net/api/health)
 
 ## Earlier Railway, Vercel and Supabase deployment
 

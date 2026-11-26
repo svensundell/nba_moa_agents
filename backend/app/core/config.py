@@ -5,7 +5,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     allowed_origins: str = Field(default="http://localhost:5173")
     # When set, clients must send Authorization: Bearer <token> or X-App-Access-Token.
     app_access_token: str = Field(default="")
+
+    demo_openrouter_key: SecretStr = SecretStr("")
+    demo_daily_runs: int = Field(default=20, ge=1)
 
     balldontlie_api_key: str = Field(default="")
 

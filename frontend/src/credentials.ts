@@ -32,9 +32,8 @@ export function authHeaders(): HeadersInit {
   return headers;
 }
 
-export function hasRunCredentials(health: { app_access_required?: boolean } | null): boolean {
+export function hasRunCredentials(health: { app_access_required?: boolean; sponsored_runs?: boolean } | null): boolean {
   if (!health) return false;
   if (health.app_access_required && !getAppAccessToken()) return false;
-  if (!getOpenRouterKey()) return false;
-  return true;
+  return Boolean(health.sponsored_runs || getOpenRouterKey());
 }

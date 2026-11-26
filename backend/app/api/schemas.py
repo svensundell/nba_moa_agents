@@ -81,6 +81,7 @@ class RunResult(BaseModel):
 class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
     openrouter_byok: bool = True
+    sponsored_runs: bool = False
     has_balldontlie: bool
     database_ok: bool
     mcp_initialised: bool

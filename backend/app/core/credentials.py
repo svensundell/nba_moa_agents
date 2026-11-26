@@ -7,19 +7,41 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 
 from fastapi import HTTPException, status
+from sqlalchemy import text
 
 from app.core.config import get_settings
+from app.db.session import get_engine
 
 _openrouter_api_key: ContextVar[str | None] = ContextVar("openrouter_api_key", default=None)
 
 
-def resolve_openrouter_api_key(header_key: str | None = None) -> str:
+async def resolve_openrouter_api_key(header_key: str | None = None) -> str:
     """Pick the OpenRouter key for this request (header, WS payload, or request context)."""
     if header_key and header_key.strip():
         return header_key.strip()
     override = _openrouter_api_key.get()
     if override and override.strip():
         return override.strip()
+    settings = get_settings()
+    sponsored_key = settings.demo_openrouter_key.get_secret_value().strip()
+    if sponsored_key:
+        # Reserve before billing, including concurrent requests and failed runs.
+        async with get_engine().begin() as conn:
+            reserved = await conn.scalar(
+                text("""
+                    INSERT INTO demo_usage (day, requests)
+                    VALUES ((CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date, 1)
+                    ON CONFLICT (day) DO UPDATE SET requests = demo_usage.requests + 1
+                    WHERE demo_usage.requests < :limit
+                    RETURNING requests
+                """),
+                {"limit": settings.demo_daily_runs},
+            )
+        if reserved is None:
+            raise HTTPException(
+                status_code=429, detail="Daily demo limit reached. Try again tomorrow (UTC)."
+            )
+        return sponsored_key
     raise HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="OpenRouter API key required. Send header X-OpenRouter-Key or openrouter_api_key in the WebSocket handshake.",
