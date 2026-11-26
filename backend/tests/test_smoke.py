@@ -61,3 +61,10 @@ def test_no_data_sources_module() -> None:
 
     spec = util.find_spec("app.moa.agents.data_sources")
     assert spec is None, "app.moa.agents.data_sources should no longer exist"
+
+
+def test_server_imports_in_fresh_process() -> None:
+    import subprocess
+    import sys
+
+    subprocess.run([sys.executable, "-c", "from app.main import app"], check=True)

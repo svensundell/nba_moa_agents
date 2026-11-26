@@ -1,0 +1,110 @@
+{
+  "mode": "query",
+  "date": "2025-06-22",
+  "query": "Appelle seulement espn_nba_scoreboard avec la date 2025-06-22. Réponds en une phrase en français avec le vainqueur, le score final et la citation. N’utilise aucun autre outil.",
+  "final_brief": "Le 22 juin 2025, le **Oklahoma City Thunder** a battu les Indiana Pacers sur le score de **103 à 91** [source: ESPN scoreboard].",
+  "single_llm_answer": "",
+  "proposals": [],
+  "refinements": [],
+  "events": [
+    {
+      "agent": "nba_copilot",
+      "layer": "aggregator",
+      "type": "start",
+      "content": "NBA Copilot started with 12 MCP tools.",
+      "model": "deepseek/deepseek-v4-pro",
+      "timestamp": "2026-11-26T16:07:05.825141",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    },
+    {
+      "agent": "nba_copilot",
+      "layer": "aggregator",
+      "type": "tool",
+      "content": "espn_nba_scoreboard: content=[{'type': 'text', 'text': '{\\n  \"source\": \"espn.site.api\",\\n  \"date\": \"2025-06-22\",\\n  \"count\": 1,\\n  \"games\": [\\n    {\\n      \"event_id\": \"401766128\",\\n      \"name\": \"Indiana Pacers at Oklahoma City Thunder\",\\n ",
+      "model": "deepseek/deepseek-v4-pro",
+      "timestamp": "2026-11-26T16:07:37.725637",
+      "citation_id": 1,
+      "provider": "ESPN",
+      "tool": "espn_nba_scoreboard",
+      "retrieved_at": "2026-11-26T16:07:37.725519",
+      "source_url": "https://www.espn.com/nba/scoreboard/_/date/20250622"
+    },
+    {
+      "agent": "nba_copilot",
+      "layer": "aggregator",
+      "type": "done",
+      "content": "NBA Copilot answer ready.",
+      "model": "deepseek/deepseek-v4-pro",
+      "timestamp": "2026-11-26T16:07:39.922071",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    }
+  ],
+  "started_at": "2026-11-26T16:07:05.796687",
+  "finished_at": "2026-11-26T16:07:39.922371",
+  "duration_seconds": 34.125684,
+  "metrics": {
+    "run_id": "8fedd3d944f9425fbc6009f19dddab55",
+    "mode": "query",
+    "started_at": "2026-11-26T16:07:05.796623",
+    "finished_at": "2026-11-26T16:07:39.922476",
+    "duration_seconds": 34.12584433900065,
+    "total_input_tokens": 4588,
+    "total_output_tokens": 305,
+    "total_cost_usd": 0.003191,
+    "llm_call_count": 2,
+    "tool_call_count": 1,
+    "tool_failure_count": 0,
+    "distinct_sources": 1,
+    "sources": [
+      "mcp:espn_nba_scoreboard"
+    ],
+    "agents": [
+      {
+        "agent": "nba_copilot",
+        "model": "deepseek/deepseek-v4-pro",
+        "llm_calls": 2,
+        "input_tokens": 4588,
+        "output_tokens": 305,
+        "cost_usd": 0.00319135,
+        "llm_latency_ms": 4384.442821999073,
+        "tool_calls": 1,
+        "tool_failures": 0,
+        "tool_latency_ms": 29592.904610000005,
+        "wall_clock_ms": 0.0
+      }
+    ],
+    "tool_calls": [
+      {
+        "agent": "nba_copilot",
+        "tool": "espn_nba_scoreboard",
+        "latency_ms": 29592.904610000005,
+        "success": true,
+        "error": null,
+        "started_at": "2026-11-26T16:07:37.725490"
+      }
+    ],
+    "moa_cost_usd": 0.0,
+    "baseline_cost_usd": 0.003191,
+    "estimated_price": true
+  },
+  "source_citations": [
+    {
+      "id": 1,
+      "provider": "ESPN",
+      "tool": "espn_nba_scoreboard",
+      "agent": "nba_copilot",
+      "retrieved_at": "2026-11-26T16:07:37.725519",
+      "url": "https://www.espn.com/nba/scoreboard/_/date/20250622",
+      "title": "espn nba scoreboard",
+      "excerpt": "[{'type': 'text', 'text': '{\\n  \"source\": \"espn.site.api\",\\n  \"date\": \"2025-06-22\",\\n  \"count\": 1,\\n  \"games\": [\\n    {\\n      \"event_id\": \"401766128\",\\n      \"name\": \"Indiana Pacers at Oklahoma City Thunder\",\\n      \"short_name\": \"IND @ OKC\",\\n      \"status\": \"Final\",\\n      \"c…"
+    }
+  ]
+}

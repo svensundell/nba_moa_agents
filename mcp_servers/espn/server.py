@@ -183,7 +183,13 @@ async def nba_scoreboard(date: str | None = None) -> dict:
     if "error" in raw:
         return raw
     games = [_format_score_for_game(e) for e in raw.get("events", [])]
-    return {"source": "espn.site.api", "date": target, "count": len(games), "games": games}
+    return {
+        "source": "espn.site.api",
+        "url": f"https://www.espn.com/nba/scoreboard/_/date/{espn_date}",
+        "date": target,
+        "count": len(games),
+        "games": games,
+    }
 
 
 # Map ESPN's verbose stat keys to the short labels we want in the response.

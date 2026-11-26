@@ -9,6 +9,7 @@ from sqlalchemy import delete, desc, func, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
+from app.eval.models import RunRow
 from app.memory.models import BriefRow, ChunkRow
 from app.memory.schemas import BriefSummary
 
@@ -40,10 +41,19 @@ class MemoryRepository:
         title: str,
         body_markdown: str,
         chunks: list[tuple[str, str, list[float] | None]],
+        owner_id: str | None = None,
     ) -> int:
         """Replace a brief and its chunks. Returns chunk count."""
         indexed_at = datetime.now()
         async with self._session_factory() as session, session.begin():
+            if owner_id is not None:
+                owned_run = await session.scalar(
+                    select(RunRow.run_id)
+                    .where(RunRow.run_id == run_id, RunRow.owner_id == owner_id)
+                    .with_for_update()
+                )
+                if owned_run is None:
+                    return 0
             stmt = insert(BriefRow).values(
                 brief_id=brief_id,
                 run_id=run_id,
@@ -83,7 +93,9 @@ class MemoryRepository:
                 )
         return len(chunks)
 
-    async def list_briefs(self, *, limit: int = 50) -> list[BriefSummary]:
+    async def list_briefs(
+        self, *, limit: int = 50, owner_id: str | None = None
+    ) -> list[BriefSummary]:
         async with self._session_factory() as session:
             result = await session.execute(
                 select(
@@ -95,6 +107,7 @@ class MemoryRepository:
                     BriefRow.chunk_count,
                     BriefRow.indexed_at,
                 )
+                .where(_owned_briefs(owner_id))
                 .order_by(desc(BriefRow.date), desc(BriefRow.indexed_at))
                 .limit(limit)
             )
@@ -119,8 +132,10 @@ class MemoryRepository:
         since_date: str | None = None,
         query_embedding: list[float] | None = None,
         limit: int | None = None,
+        owner_id: str | None = None,
     ) -> list[dict[str, Any]]:
         cutoff = since_date or (date.today() - timedelta(days=days)).isoformat()
+        scope = ChunkRow.brief_id.in_(select(BriefRow.brief_id).where(_owned_briefs(owner_id)))
         async with self._session_factory() as session:
             if query_embedding is not None:
                 distance = ChunkRow.embedding.cosine_distance(query_embedding)
@@ -134,7 +149,7 @@ class MemoryRepository:
                         ChunkRow.embedding,
                         distance.label("distance"),
                     )
-                    .where(ChunkRow.date >= cutoff)
+                    .where(ChunkRow.date >= cutoff, scope)
                     .where(ChunkRow.embedding.is_not(None))
                     .order_by(distance)
                 )
@@ -165,7 +180,7 @@ class MemoryRepository:
                     ChunkRow.content,
                     ChunkRow.embedding,
                 )
-                .where(ChunkRow.date >= cutoff)
+                .where(ChunkRow.date >= cutoff, scope)
                 .order_by(desc(ChunkRow.date))
             )
             if limit is not None:
@@ -188,6 +203,12 @@ class MemoryRepository:
         async with self._session_factory() as session:
             row = await session.scalar(select(func.count()).select_from(ChunkRow))
             return int(row or 0)
+
+
+def _owned_briefs(owner_id: str | None):
+    if owner_id is None:
+        return True  # Used by offline indexing and repository checks only.
+    return BriefRow.run_id.in_(select(RunRow.run_id).where(RunRow.owner_id == owner_id))
 
 
 _repository: MemoryRepository | None = None

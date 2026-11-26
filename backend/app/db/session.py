@@ -30,6 +30,7 @@ def configure_engine(database_url: str, *, echo: bool = False) -> AsyncEngine:
     _engine = create_async_engine(
         database_url,
         echo=echo,
+        hide_parameters=True,
         pool_pre_ping=True,
         connect_args=connect_args_for_url(database_url),
     )

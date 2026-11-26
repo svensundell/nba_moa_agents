@@ -149,7 +149,7 @@ export interface ChatMessage {
 
 export type LanguageCode = "en" | "fr";
 
-import { authHeaders, getAppAccessToken, getOpenRouterKey } from "./credentials";
+import { getAppAccessToken, getOpenRouterKey } from "./credentials";
 
 /** Local dev: `/api` (Vite proxy). Production: `VITE_API_BASE=https://<api-host>/api` */
 function httpApiBase(): string {
@@ -180,6 +180,8 @@ export interface HealthInfo {
   status?: "ok" | "degraded";
   openrouter_byok?: boolean;
   sponsored_runs?: boolean;
+  demo_daily_runs?: number | null;
+  demo_runs_remaining?: number | null;
   has_balldontlie: boolean;
   database_ok?: boolean;
   mcp_initialised: boolean;
@@ -212,13 +214,28 @@ export const EMPTY_DASHBOARD_SUMMARY: DashboardSummary = {
   last_run_at: null,
 };
 
-function apiError(path: string, status: number): Error {
-  if (status === 404) {
-    return new Error(
-      `${path} returned 404. Start the backend from backend/ (uv run uvicorn app.main:app --reload) and confirm /api/runs exists in http://localhost:8000/docs.`,
-    );
-  }
-  return new Error(`${path} failed: ${status}`);
+async function getPrivate<T>(path: string): Promise<T> {
+  const response = await fetch(`${httpApiBase()}${path}`, { cache: "no-store" });
+  if (!response.ok) throw new Error(String(response.status));
+  return response.json();
+}
+
+export interface AccountSession {
+  google_sign_in: boolean;
+  signed_in: boolean;
+}
+
+export const fetchSession = () => getPrivate<AccountSession>("/account/session");
+export const googleSignInUrl = () => `${httpApiBase()}/account/google`;
+
+export async function logout() {
+  const response = await fetch(`${httpApiBase()}/account/logout`, { method: "POST" });
+  if (!response.ok) throw new Error(String(response.status));
+}
+
+export async function clearHistory() {
+  const response = await fetch(`${httpApiBase()}/runs`, { method: "DELETE" });
+  if (!response.ok) throw new Error(String(response.status));
 }
 
 export async function fetchRuns(opts?: {
@@ -229,17 +246,11 @@ export async function fetchRuns(opts?: {
   if (opts?.limit) params.set("limit", String(opts.limit));
   if (opts?.mode) params.set("mode", opts.mode);
   const suffix = params.toString();
-  const path = `${httpApiBase()}/runs${suffix ? `?${suffix}` : ""}`;
-  const r = await fetch(path, { headers: authHeaders() });
-  if (!r.ok) throw apiError("/api/runs", r.status);
-  return r.json();
+  return getPrivate<RunSummary[]>(`/runs${suffix ? `?${suffix}` : ""}`);
 }
 
 export async function fetchRunDetail(runId: string): Promise<RunResult> {
-  const path = `${httpApiBase()}/runs/${encodeURIComponent(runId)}`;
-  const r = await fetch(path, { headers: authHeaders() });
-  if (!r.ok) throw apiError(path, r.status);
-  return r.json();
+  return getPrivate<RunResult>(`/runs/${encodeURIComponent(runId)}`);
 }
 
 export async function fetchMetricsSummary(opts?: {
@@ -249,20 +260,19 @@ export async function fetchMetricsSummary(opts?: {
   const params = new URLSearchParams();
   params.set("last_n", String(opts?.lastN ?? 100));
   if (opts?.mode) params.set("mode", opts.mode);
-  const path = `${httpApiBase()}/metrics/summary?${params}`;
-  const r = await fetch(path, { headers: authHeaders() });
-  if (!r.ok) throw apiError("/api/metrics/summary", r.status);
-  return r.json();
+  return getPrivate<DashboardSummary>(`/metrics/summary?${params}`);
 }
 
 // ─── WebSocket streaming ─────────────────────────────────────────────────────
+
+export type RunError = "quota" | "access" | "invalid" | "timeout" | "connection" | "generation";
 
 export type StreamFrame =
   | { kind: "started"; at: string; mode: string }
   | { kind: "event"; event: AgentEvent }
   | { kind: "node_done"; node: string }
   | { kind: "result"; result: RunResult }
-  | { kind: "error"; message: string };
+  | { kind: "error"; code: RunError; message?: string };
 
 export interface RunOptions {
   mode: "brief" | "query" | "compare";
@@ -278,18 +288,16 @@ export function streamRun(opts: RunOptions): { close: () => void } {
   const ws = new WebSocket(url);
   let finished = false;
 
-  const fail = (message: string) => {
+  const fail = (code: RunError) => {
     if (finished) return;
     finished = true;
-    opts.onFrame({ kind: "error", message });
+    opts.onFrame({ kind: "error", code });
   };
 
   const connectTimeout = window.setTimeout(() => {
     if (ws.readyState === WebSocket.CONNECTING) {
       ws.close();
-      fail(
-        "The API did not open the live connection in time. Please retry.",
-      );
+      fail("connection");
     }
   }, 12_000);
 
@@ -311,30 +319,27 @@ export function streamRun(opts: RunOptions): { close: () => void } {
   };
 
   ws.onmessage = (e) => {
+    if (finished) return;
     try {
       const frame: StreamFrame = JSON.parse(e.data);
       if (frame.kind === "result" || frame.kind === "error") {
         finished = true;
       }
       opts.onFrame(frame);
-    } catch (err) {
-      console.error("bad frame", err, e.data);
+    } catch {
+      fail("connection");
+      ws.close();
     }
   };
 
-  ws.onerror = (e) => {
-    console.error("websocket error", e);
+  ws.onerror = () => {
     window.clearTimeout(connectTimeout);
-    fail(
-      "Could not open the live connection to the API. Check the backend status and try again.",
-    );
+    fail("connection");
   };
 
-  ws.onclose = (ev) => {
+  ws.onclose = () => {
     window.clearTimeout(connectTimeout);
-    if (!finished && !ev.wasClean) {
-      fail("WebSocket closed unexpectedly. Restart the backend and reload the page.");
-    }
+    fail("connection");
   };
 
   return {

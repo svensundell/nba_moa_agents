@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { AgentEvent } from "../api";
+import type { AgentEvent, LanguageCode } from "../api";
 import clsx from "clsx";
 
 const LAYER_COLOR: Record<string, string> = {
@@ -17,7 +17,7 @@ const TYPE_BADGE: Record<string, string> = {
   chunk: "bg-slate-50 text-slate-600 border-slate-200",
 };
 
-export function EventLog({ events }: { events: AgentEvent[] }) {
+export function EventLog({ events, language }: { events: AgentEvent[]; language?: LanguageCode }) {
   const ref = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -27,15 +27,15 @@ export function EventLog({ events }: { events: AgentEvent[] }) {
   return (
     <div
       ref={ref}
-      className="card font-mono text-sm h-[460px] overflow-y-auto space-y-1.5"
+      className="card font-mono text-sm max-h-80 overflow-y-auto space-y-1.5"
     >
       {events.length === 0 && (
         <div className="text-muted italic text-base">Waiting for the agents to start...</div>
       )}
       {events.map((ev, i) => (
-        <div key={i} className="flex gap-2 leading-snug">
+        <div key={i} className="grid gap-1 sm:gap-2 sm:grid-cols-[auto_auto_auto_1fr] leading-snug py-1 border-b border-border">
           <span className="text-muted">
-            {new Date(ev.timestamp).toLocaleTimeString()}
+            {new Date(ev.timestamp).toLocaleTimeString(language)}
           </span>
           <span className={clsx("font-semibold w-24 shrink-0", LAYER_COLOR[ev.layer])}>
             {ev.agent}
@@ -48,7 +48,7 @@ export function EventLog({ events }: { events: AgentEvent[] }) {
           >
             {ev.type}
           </span>
-          <span className="text-slate-700 truncate text-sm">{ev.content}</span>
+          <span className="text-slate-700 break-words min-w-0 text-sm">{ev.content}</span>
         </div>
       ))}
     </div>

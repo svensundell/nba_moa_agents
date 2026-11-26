@@ -33,6 +33,8 @@ dependencies = [
     "python-dateutil>=2.9.0",
     "tenacity>=9.0.0",
     "feedparser>=6.0.11",
+    "authlib>=1.7.0",
+    "itsdangerous>=2.2.0",
 ]
 
 [project.optional-dependencies]

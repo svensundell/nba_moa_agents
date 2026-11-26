@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import date as iso_date
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from app.eval.schemas import RunMetrics, SourceCitation
 from app.moa.state import AgentEvent
@@ -14,7 +15,7 @@ LanguageCode = Literal["en", "fr"]
 
 
 class BriefRequest(BaseModel):
-    date: str | None = Field(
+    date: iso_date | None = Field(
         default=None, description="ISO date (YYYY-MM-DD), defaults to yesterday."
     )
     language: LanguageCode = Field(default="en", description="Output language (`en` or `fr`).")
@@ -25,28 +26,35 @@ class ChatMessage(BaseModel):
     content: str = Field(min_length=1, max_length=2000)
 
 
-class QueryRequest(BaseModel):
+class QueryRequest(BriefRequest):
     query: str = Field(
         default="",
         max_length=500,
         description="Single-turn input kept for backwards compatibility.",
     )
-    date: str | None = None
-    language: LanguageCode = Field(default="en", description="Output language (`en` or `fr`).")
     messages: list[ChatMessage] = Field(
         default_factory=list,
+        max_length=9,
         description="Optional conversation history for multi-turn NBA Copilot chat.",
     )
 
+    @model_validator(mode="after")
+    def latest_question(self) -> QueryRequest:
+        if self.messages:
+            latest = self.messages[-1]
+            if latest.role != "user" or not latest.content.strip():
+                raise ValueError("The last message must be a question from the user.")
+        elif not self.query.strip():
+            raise ValueError("Provide a question.")
+        return self
 
-class CompareRequest(BaseModel):
+
+class CompareRequest(BriefRequest):
     query: str = Field(
         default="",
         max_length=500,
         description="Optional comparison prompt. Empty query runs daily brief comparison.",
     )
-    date: str | None = None
-    language: LanguageCode = Field(default="en", description="Output language (`en` or `fr`).")
 
 
 class ProposalView(BaseModel):
@@ -82,6 +90,8 @@ class HealthResponse(BaseModel):
     status: Literal["ok", "degraded"]
     openrouter_byok: bool = True
     sponsored_runs: bool = False
+    demo_daily_runs: int | None = None
+    demo_runs_remaining: int | None = None
     has_balldontlie: bool
     database_ok: bool
     mcp_initialised: bool

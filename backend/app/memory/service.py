@@ -37,6 +37,7 @@ class MemoryService:
         language: str,
         markdown: str,
         force: bool = False,
+        owner_id: str | None = None,
     ) -> int:
         """Chunk, embed, and store a Daily Brief. Returns number of chunks."""
         if not self.enabled:
@@ -61,7 +62,9 @@ class MemoryService:
             vectors = await embed_texts(texts)
             embeddings = [v for v in vectors]
         except Exception as exc:
-            logger.warning(f"Embedding failed for brief {brief_id}: {exc} — keyword fallback only.")
+            logger.warning(
+                "Brief embedding failed ({}); using keyword fallback", type(exc).__name__
+            )
             embeddings = [None] * len(texts)
 
         rows = [(draft.section, draft.content, embeddings[i]) for i, draft in enumerate(drafts)]
@@ -74,6 +77,7 @@ class MemoryService:
             title=title,
             body_markdown=body,
             chunks=rows,
+            owner_id=owner_id,
         )
         logger.info(f"Indexed brief {brief_id} ({date_value}): {count} chunks.")
         return count
@@ -85,6 +89,7 @@ class MemoryService:
         days: int | None = None,
         since_date: str | None = None,
         limit: int | None = None,
+        owner_id: str | None = None,
     ) -> MemorySearchResult:
         settings = get_settings()
         window = days if days is not None else settings.memory_default_days
@@ -95,13 +100,14 @@ class MemoryService:
             try:
                 query_vec = (await embed_texts([query.strip()]))[0]
             except Exception as exc:
-                logger.warning(f"Query embedding failed: {exc}")
+                logger.warning("Query embedding failed ({})", type(exc).__name__)
 
         chunks = await self._repo.fetch_chunks_for_search(
             days=window,
             since_date=since_date,
             query_embedding=query_vec,
             limit=top_k * 6 if query_vec is not None else None,
+            owner_id=owner_id,
         )
         if not chunks:
             return MemorySearchResult(query=query, days=window, hits=[])
@@ -136,8 +142,8 @@ class MemoryService:
         ]
         return MemorySearchResult(query=query, days=window, hits=hits)
 
-    async def list_briefs(self, *, limit: int = 50) -> list[BriefSummary]:
-        return await self._repo.list_briefs(limit=limit)
+    async def list_briefs(self, *, limit: int = 50, owner_id: str) -> list[BriefSummary]:
+        return await self._repo.list_briefs(limit=limit, owner_id=owner_id)
 
     def format_hits_for_tool(self, result: MemorySearchResult) -> str:
         if not result.hits:

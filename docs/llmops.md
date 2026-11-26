@@ -1,6 +1,6 @@
 # LLMOps and evaluation
 
-Every pipeline run is instrumented at runtime, persisted in Postgres, and exposed through the **Evaluation** tab and REST API. The goal is to make **cost, latency, tool behaviour, and source coverage** visible so model routing and failure modes can be tuned from data—not guesswork.
+Every run is instrumented at runtime. **Examples & quality** shows curated recordings from real runs and their original measurements. **My history** and the history APIs only show runs saved by the signed-in account. Guest responses return their trace directly to the caller without saving it to the run or brief database.
 
 ## What is measured
 
@@ -47,6 +47,8 @@ Nothing is sampled or batched offline: metrics reflect the **actual** execution 
 
 ## API
 
+These endpoints require a signed-in account and return only rows belonging to it.
+
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /api/runs?limit=&mode=` | Run history (summaries) |
@@ -56,7 +58,7 @@ Nothing is sampled or batched offline: metrics reflect the **actual** execution 
 
 The Evaluation tab consumes these endpoints; no separate analytics service is required for local or demo use.
 
-## Evaluation dashboard (UI)
+## My history (UI)
 
 The **Evaluation** tab provides:
 

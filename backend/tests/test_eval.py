@@ -35,8 +35,8 @@ def test_price_for_unknown_model_falls_back_to_default() -> None:
 
 
 def test_cost_usd_matches_manual_computation() -> None:
-    # 1 000 prompt tokens @ $0.075/1M + 500 completion tokens @ $0.30/1M
-    expected = 1_000 * 0.075 / 1_000_000 + 500 * 0.30 / 1_000_000
+    # 1 000 prompt tokens @ $0.30/1M + 500 completion tokens @ $2.50/1M
+    expected = 1_000 * 0.30 / 1_000_000 + 500 * 2.50 / 1_000_000
     actual = cost_usd(
         input_tokens=1_000,
         output_tokens=500,
@@ -184,6 +184,7 @@ async def test_repository_round_trip(pg_session_factory) -> None:
         metrics = t.finalize()
         await repo.save_run(
             metrics=metrics,
+            owner_id="test-owner",
             date="2025-05-18",
             query="",
             language="en",
@@ -192,7 +193,7 @@ async def test_repository_round_trip(pg_session_factory) -> None:
             payload={"hello": "world"},
         )
 
-        runs = await repo.list_runs(limit=10)
+        runs = await repo.list_runs(owner_id="test-owner", limit=10)
         assert len(runs) == 1
         assert runs[0].run_id == metrics.run_id
         assert runs[0].tool_failure_count == 1
@@ -205,7 +206,7 @@ async def test_repository_round_trip(pg_session_factory) -> None:
         assert isinstance(calls[0], ToolCallMetric)
         assert calls[0].success is False
 
-        summary = await repo.summary(last_n=10)
+        summary = await repo.summary(owner_id="test-owner", last_n=10)
         assert summary.total_runs == 1
         assert summary.tool_failure_rate == 1.0
         assert summary.last_run_at is not None
@@ -228,6 +229,7 @@ async def test_repository_filters_by_mode(pg_session_factory) -> None:
             metrics = t.finalize()
             await repo.save_run(
                 metrics=metrics,
+                owner_id="test-owner",
                 date="2025-05-18",
                 query="",
                 language="en",
@@ -236,17 +238,17 @@ async def test_repository_filters_by_mode(pg_session_factory) -> None:
                 payload={},
             )
 
-        all_runs = await repo.list_runs(limit=10)
+        all_runs = await repo.list_runs(owner_id="test-owner", limit=10)
         assert len(all_runs) == 4
 
-        brief_runs = await repo.list_runs(limit=10, mode="brief")
+        brief_runs = await repo.list_runs(owner_id="test-owner", limit=10, mode="brief")
         assert {r.mode for r in brief_runs} == {"brief"}
         assert len(brief_runs) == 2
 
-        all_summary = await repo.summary(last_n=10)
+        all_summary = await repo.summary(owner_id="test-owner", last_n=10)
         assert all_summary.total_runs == 4
 
-        query_summary = await repo.summary(last_n=10, mode="query")
+        query_summary = await repo.summary(owner_id="test-owner", last_n=10, mode="query")
         assert query_summary.total_runs == 1
         assert set(query_summary.cost_by_mode.keys()) == {"query"}
     finally:
@@ -265,7 +267,7 @@ def test_sources_from_tool_output() -> None:
 async def test_repository_summary_handles_empty_db(pg_session_factory) -> None:
     repo = await _make_repo(pg_session_factory)
     try:
-        summary = await repo.summary(last_n=10)
+        summary = await repo.summary(owner_id="test-owner", last_n=10)
         assert summary.total_runs == 0
         assert summary.avg_cost_usd == 0.0
         assert summary.last_run_at is None

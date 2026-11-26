@@ -29,11 +29,12 @@ class ModelPrice:
 # ``app.moa.llm.MODEL_REGISTRY``. The keys are the *provider* model ids
 # (the strings actually sent to OpenRouter), not the logical role names.
 PRICES: dict[str, ModelPrice] = {
-    "deepseek/deepseek-chat-v3.1": ModelPrice(0.27, 1.10),
-    "deepseek/deepseek-v4-pro": ModelPrice(0.55, 2.19, estimated=True),
-    "google/gemini-2.5-flash": ModelPrice(0.075, 0.30),
-    "qwen/qwen3.6-35b-a3b": ModelPrice(0.20, 0.60, estimated=True),
-    "mistralai/mistral-small-24b-instruct-2501": ModelPrice(0.20, 0.60),
+    "deepseek/deepseek-chat-v3.1": ModelPrice(0.25, 0.95),
+    "openai/gpt-4.1-mini": ModelPrice(0.40, 1.60),
+    "deepseek/deepseek-v4-pro": ModelPrice(0.81, 1.56, estimated=True),
+    "google/gemini-2.5-flash": ModelPrice(0.30, 2.50),
+    "qwen/qwen3.6-35b-a3b": ModelPrice(0.10, 0.89, estimated=True),
+    "mistralai/mistral-small-24b-instruct-2501": ModelPrice(0.05, 0.08),
 }
 
 # Default for models not in the table — conservative middle-of-the-road.

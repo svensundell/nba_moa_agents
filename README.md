@@ -1,49 +1,16 @@
 # NBA MCP & Mixture of Agents
 
-> **MCP-native** Mixture-of-Agents for structured NBA briefings and **NBA Copilot** — a multi-turn research chat with 11 tools across 3 custom MCP servers, built with LangGraph and OpenRouter.
+> Sven Juge built an NBA research assistant that calls ESPN, balldontlie and Reddit through three custom MCP servers. LangGraph coordinates the daily brief, while NBA Copilot selects its own tools for open questions. Both show their sources and run metrics.
 
-[CI](https://github.com/svensundell/nba_moa_agents/actions/workflows/ci.yml)
-python
-langgraph
-openrouter
-mcp
-license
+**[Try the Azure demo](https://nba-moa-sven.azurewebsites.net/)** · [Recorded Copilot run](https://nba-moa-sven.azurewebsites.net/?example=finals&lang=en) · [Recorded multi-agent brief](https://nba-moa-sven.azurewebsites.net/?example=brief&lang=en) · [CI](https://github.com/svensundell/nba_moa_agents/actions/workflows/ci.yml)
 
-**Contents:** [Preview](#product-preview) · [Why](#why-this-project) · [Stack](#tech-stack) · [Case study](docs/case-study.md) · [LLMOps](docs/llmops.md) · [Testing](docs/testing.md) · [Deployment](docs/deployment.md) · [Architecture](#architecture) · [Modes](#four-demo-modes) · [Trade-offs](#engineering-trade-offs) · [Quick start](#quick-start) · [Structure](#project-structure) · [Screenshots](#screenshots)
+## Try it in a minute
 
-## Product preview
+1. Choose **Try the live question**. Copilot checks the June 22, 2025 ESPN scoreboard and cites its result. The Azure demo shares 20 sponsored requests per UTC day. Guests can run the demo without a key or account.
+2. Open **Examples & quality** for real recorded runs with sources, tool traces and measured latency. One brief includes a documented factual inconsistency and a Reddit failure. Costs are calculated from model prices.
+3. Explore the [architecture](docs/architecture.md), [case study](docs/case-study.md), [evaluation and instrumentation](docs/llmops.md), [test suite](docs/testing.md) and [Azure deployment](deploy/azure/README.md).
 
-Live app: [NBA on Azure](https://nba-moa-sven.azurewebsites.net) · [API health](https://nba-moa-sven.azurewebsites.net/api/health) · [Full screenshot gallery](#screenshots)
-
-| Daily Brief (MoA graph + trace) | NBA Copilot | MoA vs Copilot | Evaluation metrics |
-| --- | --- | --- | --- |
-| ![Daily Brief — graph and live trace](docs/images/daily-brief-graph.png) | ![NBA Copilot — chat](docs/images/copilot-chat.png) | ![MoA vs Copilot — side by side](docs/images/compare-side-by-side.png) | ![Evaluation dashboard — cost, latency, tool calls](docs/images/daily-brief-evaluation.png) |
-
-## Why this project?
-
-Most "Mixture of Agents" demos are abstract chat playgrounds. This one solves a concrete problem:
-
-> *A structured NBA briefing for last night, plus **NBA Copilot** to dig deeper with live data.*
-
-The implementation treats that workflow as a real system: runs are measured, sources are cited, and the stack is meant to be run and extended by someone else (`docker compose up`, tests, typed API).
-
-**What ships today:**
-
-1. **Observable runs** — every invocation is tracked (`RunTracker` → Postgres `runs`/`agent_metrics`/`tool_calls`): cost per run and per agent, token usage, LLM/MCP latency, tool failure rate, source coverage, wall-clock per graph node. The **Evaluation** tab charts history, filters by mode, and compares MoA vs single-LLM cost on `compare` runs.
-2. **Source traceability** — each MCP call becomes a numbered `SourceCitation` (provider, tool, retrieval time, URL when available, payload excerpt). The **Daily Brief** editor receives a source index and can cite `[1]`, `[2]` inline; the UI links citations to the live tool timeline and a **Sources** bibliography. *(Semantic "click any phrase → tool output" and Copilot post-pass citations are on the [roadmap](#roadmap).)*
-3. **MoA + MCP** — 9 specialised agents on 3 layers across **5 model families** via OpenRouter; **three custom MCP servers, 11 tools**, strictly MCP-driven (no HTTP fallbacks). The servers are reusable in any MCP client (Claude Desktop, Cursor, etc.).
-4. **Hybrid orchestration** — `brief` / `compare` use a *deterministic* LangGraph MoA pipeline (repeatable daily recap). **NBA Copilot** (`query`) uses a *dynamic* tool-using `create_agent` with multi-turn chat. **Compare** runs both in parallel (MoA brief vs Copilot on the same prompt).
-5. **Brief memory for Copilot** — each Daily Brief is chunked, embedded (OpenRouter), and stored in Postgres `briefs` + `chunks` (`pgvector` for similarity). NBA Copilot can call `search_brief_memory` to retrieve past storylines (e.g. “why is everyone talking about the Pacers this week?”) alongside live MCP tools.
-
-Live deployment:
-
-- Frontend: [Azure site](https://nba-moa-sven.azurewebsites.net) · [Vercel entry point](https://nba-moa-agents.vercel.app)
-- Backend health: `https://nba-moa-sven.azurewebsites.net/api/health`
-- The public Azure demo includes 20 server-funded requests per UTC day, shared by all visitors. Open NBA Copilot and ask for a score to see the source and tool calls.
-
-Planned next: scheduled briefs, Copilot citation post-pass, and public-traffic hardening (auth/rate limits). See [Roadmap](#roadmap).
-
-Extended docs: `[case-study.md](docs/case-study.md)` (narrative), `[llmops.md](docs/llmops.md)` (evaluation), `[testing.md](docs/testing.md)` (CI), `[deployment.md](docs/deployment.md)` (Azure hosting and earlier deployment).
+The app also runs the multi-agent brief and compares it with a Copilot answer. Google sign-in, when configured by the host, saves future runs and enables account-scoped search over saved briefs. Guest results stay in the browser tab. Live prompts may be processed by model and data providers.
 
 ## Tech stack
 
@@ -51,7 +18,7 @@ Extended docs: `[case-study.md](docs/case-study.md)` (narrative), `[llmops.md](d
 | Layer             | Choices                                                                                   |
 | ----------------- | ----------------------------------------------------------------------------------------- |
 | **Orchestration** | LangGraph (MoA `brief` / `compare`), LangChain `create_agent` (NBA Copilot)               |
-| **Models**        | OpenRouter — 5 families (Gemini Flash, Qwen, Mistral, DeepSeek, …) with per-agent routing |
+| **Models**        | OpenRouter — Gemini Flash, Qwen, Mistral, DeepSeek and GPT-4.1 Mini with per-agent routing |
 | **Data**          | 3 custom MCP servers (stdio) — ESPN, balldontlie, Reddit; no direct HTTP in agents        |
 | **API**           | FastAPI, WebSockets (`/api/ws/run`), Pydantic v2                                          |
 | **Persistence**   | PostgreSQL 16 + `pgvector`, SQLAlchemy async, Alembic                                     |
@@ -117,7 +84,7 @@ LangGraph executes nodes that share an incoming edge in **parallel**, so layer-1
 | `analyst`     | refiner                        | `qwen/qwen3.6-35b-a3b`                      | (no tool — fact-checks the proposals)                                                                               |
 | `narrative`   | refiner                        | `deepseek/deepseek-chat-v3.1`               | (no tool — finds storylines)                                                                                        |
 | `editor`      | aggregator                     | `deepseek/deepseek-chat-v3.1`               | (no tool — composes the final brief)                                                                                |
-| `nba_copilot` | NBA Copilot / compare baseline | `deepseek/deepseek-v4-pro`                  | **all 11 MCP tools** (autonomous tool selection)                                                                    |
+| `nba_copilot` | NBA Copilot / compare baseline | `openai/gpt-4.1-mini`                  | **all 11 MCP tools** (autonomous tool selection)                                                                    |
 
 
  `stats` is a tool-using agent: it plans up to ~6 tool calls per run to ground its bullets in **exact statlines** lifted from ESPN's boxscore data.
@@ -148,7 +115,7 @@ All three are launched as **stdio subprocesses** by `langchain_mcp_adapters.Mult
 ### Evaluation & observability (LLMOps)
 
 Each run is tracked by `RunTracker` (ContextVar-scoped) and stored in Postgres:
-**cost**, **tokens**, **LLM/MCP latency**, **tool failures**, **source coverage**, and **per-node wall-clock**. The **Evaluation** tab charts history across Daily Brief, Copilot, and Compare runs (MoA vs Copilot cost on the same prompt).
+**cost**, **tokens**, **LLM/MCP latency**, **tool failures**, **source coverage**, and **per-node wall-clock**. The **Examples & quality** tab shows public recordings. **My history** shows only the signed-in account’s runs and charts.
 
 Full detail — metrics schema, instrumentation flow, API, screenshots, tuning guide:
 `[docs/llmops.md](docs/llmops.md)`.
@@ -367,11 +334,11 @@ The three MCP servers in `mcp_servers/` are reusable on their own — drop them 
 - Scheduled daily briefing (cron + email/Slack)
 - Brief history UI (browse indexed briefs in the frontend)
 - Public deployment on Azure App Service and PostgreSQL — runbook in `[docs/deployment.md](docs/deployment.md)`
-- Public demo hardening (auth gate, quotas, optional offline fixture mode)
+- Broader factual regression checks across score, injury and news questions
 
 ## Screenshots
 
-Captured from the live app ([nba-moa-agents.vercel.app](https://nba-moa-agents.vercel.app)). Full set in [`docs/images/`](docs/images/).
+Screenshots from an earlier UI. The current [Azure demo](https://nba-moa-sven.azurewebsites.net/) offers the interactive views. Full set in [`docs/images/`](docs/images/).
 
 ### Daily Brief
 

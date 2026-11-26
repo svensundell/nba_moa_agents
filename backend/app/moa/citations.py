@@ -31,6 +31,8 @@ def provider_for_tool(tool_name: str) -> str:
 def title_for_tool(tool_name: str, *, arguments: dict[str, Any] | None = None) -> str:
     """Short label for a tool invocation."""
     args = arguments or {}
+    if tool_name == "espn_nba_scoreboard" and args.get("date"):
+        return f"ESPN NBA scoreboard ({args['date']})"
     if tool_name == "nba_stats_get_games" and args.get("date"):
         return f"NBA games ({args['date']})"
     if tool_name == "reddit_search_posts" and args.get("query"):
@@ -147,12 +149,8 @@ def merge_run_citations(
     seen: set[str] = set()
 
     if tracker is not None:
-        for cite in tracker.list_citations():
-            key = f"{cite.tool}|{cite.url or ''}|{cite.agent}"
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append(cite)
+        # Each tool result can be cited independently, including repeated calls.
+        out.extend(tracker.list_citations())
 
     next_id = (max((c.id for c in out), default=0)) + 1
     for prop in proposals or []:

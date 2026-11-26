@@ -23,15 +23,14 @@ class SearchBriefMemoryInput(BaseModel):
     )
 
 
-async def _search_brief_memory(query: str, days: int = 14) -> str:
-    service = get_memory_service()
-    result = await service.search(query, days=days)
-    return service.format_hits_for_tool(result)
+def build_memory_tool(owner_id: str) -> StructuredTool:
+    async def search(query: str, days: int = 14) -> str:
+        service = get_memory_service()
+        result = await service.search(query, days=days, owner_id=owner_id)
+        return service.format_hits_for_tool(result)
 
-
-def build_memory_tool() -> StructuredTool:
     return StructuredTool.from_function(
-        coroutine=_search_brief_memory,
+        coroutine=search,
         name="search_brief_memory",
         description=(
             "Search past Daily Brief archives by semantic similarity. "

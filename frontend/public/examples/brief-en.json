@@ -1,0 +1,633 @@
+{
+  "mode": "brief",
+  "date": "2025-06-23",
+  "query": "",
+  "final_brief": "# Last Night in the NBA — 2025-06-23\n\n## Quick Hits\n- Thunder defense stifles Pacers in 103-91 victory.\n- Shai Gilgeous-Alexander posts triple-double despite poor shooting.\n- Chet Holmgren anchors defense with five blocks.\n\n## Box Score Recap\nThe Oklahoma City Thunder secured a 103-91 win over the Indiana Pacers in a game defined by defensive intensity [3][4]. Despite an inefficient shooting night from Shai Gilgeous-Alexander (8-of-27 FG), the Thunder controlled the game through strong defense and timely playmaking. The Pacers were held to just 91 points, with Bennedict Mathurin leading Indiana with 24 points but struggling from the field (6-of-14) [3][6].\n\n## Standout Statlines\n- Shai Gilgeous-Alexander (Thunder): 29 points on 8-of-27 shooting, 12 assists, 5 rebounds, 2 blocks\n- Chet Holmgren (Thunder): 18 points on 6-of-8 shooting, 8 rebounds, 5 blocks\n- Bennedict Mathurin (Pacers): 24 points on 6-of-14 shooting, 13 rebounds (7 offensive)\n- T.J. McConnell (Pacers): 16 points on 8-of-13 shooting, 6 rebounds, 7 turnovers\n\n## Trades, Rumors & News\nNo notable items today.\n\n## Injuries Watch\nNo notable items today.\n\n## Storyline of the Night\nOklahoma City's 103-91 victory over Indiana was a masterclass in defensive execution, overcoming a poor shooting night from Shai Gilgeous-Alexander [3][6]. Chet Holmgren was the defensive anchor with five blocks, while Alex Caruso provided disruptive energy off the bench. The Pacers were held to 91 points, with Bennedict Mathurin's 24 points coming on inefficient shooting as Indiana's offense never found a rhythm [3][6].\n\nShai Gilgeous-Alexander posted 29 points and 12 assists despite an uncharacteristically poor 8-for-27 shooting performance [3][6]. His impact transcended scoring, as he still managed a +11 plus/minus and led his team to a double-digit win. This stat line underscores his value as a floor general who can control a game even when his shot isn't falling [3][6].\n\n## Fan Pulse\nNo notable items today.",
+  "single_llm_answer": "",
+  "proposals": [
+    {
+      "agent": "injuries",
+      "model": "google/gemini-2.5-flash",
+      "summary": "No injury news in the current feed.",
+      "sources": [
+        "mcp:espn"
+      ]
+    },
+    {
+      "agent": "news",
+      "model": "google/gemini-2.5-flash",
+      "summary": "ESPN feed returned no headlines.",
+      "sources": [
+        "mcp:espn"
+      ]
+    },
+    {
+      "agent": "social",
+      "model": "mistralai/mistral-small-24b-instruct-2501",
+      "summary": "MCP error: Error executing tool top_posts: Client error '403 Blocked' for url 'https://www.reddit.com/r/nba/top.json?limit=15&t=day'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
+      "sources": []
+    },
+    {
+      "agent": "scores",
+      "model": "google/gemini-2.5-flash",
+      "summary": "Here's a summary of last night's results and upcoming games:\n\n*Last Night Results*\n* The Oklahoma City Thunder defeated the Indiana Pacers 103-91.\n\n*Upcoming Games*\n* No games are scheduled for today, June 23, 2025.",
+      "sources": [
+        "mcp:nba_stats:get_games"
+      ]
+    },
+    {
+      "agent": "stats",
+      "model": "qwen/qwen3.6-35b-a3b",
+      "summary": "\n\nHere are the key takeaways from last night's NBA action (June 22, 2025):\n\n*   **Shai Gilgeous-Alexander (Thunder):** 29 points on 8-of-27 shooting (2-of-12 from 3), 12 assists, 5 rebounds, and 2 blocks in 40 minutes. Despite the poor shooting efficiency, he drove the Thunder to a 103-91 victory over Indiana with a +11 plus/minus.\n*   **Chet Holmgren (Thunder):** 18 points on 6-of-8 shooting, 8 rebounds, and a game-high 5 blocks in 31 minutes. His rim protection anchored the Thunder's defensive effort in the win.\n*   **Bennedict Mathurin (Pacers):** 24 points and 13 rebounds (7 offensive) in 33 minutes. He was perfect from the free-throw line (10-of-10) but struggled from the field (6-of-14), finishing with a -14 plus/minus in the loss.\n*   **T.J. McConnell (Pacers):** 16 points on 8-of-13 shooting and 6 rebounds, but his night was marred by 7 turnovers in 28 minutes of action.\n*   **Aaron Nesmith (Pacers):** 3 points on 1-of-5 shooting, but contributed 6 rebounds, 2 steals, and 2 blocks in 30 minutes. He was one of the few Pacers with a positive impact, finishing at +6.\n*   **Alex Caruso (Thunder):** 10 points on 4-of-10 shooting, 3 steals, and 1 block off the bench. He provided strong two-way energy in 32 minutes, contributing to the Thunder's +8 plus/minus.",
+      "sources": [
+        "mcp:espn:nba_headlines",
+        "mcp:espn:nba_scoreboard",
+        "mcp:espn:nba_boxscore",
+        "mcp:nba_stats:get_games",
+        "mcp:nba_stats:search_players"
+      ]
+    }
+  ],
+  "refinements": [
+    {
+      "agent": "narrative",
+      "model": "deepseek/deepseek-chat-v3.1",
+      "content": "Thunder Defense Smothers Pacers in Grind-It-Out Win.\n\nOklahoma City’s 103-91 victory over Indiana was a masterclass in defensive execution, overcoming a poor shooting night from Shai Gilgeous-Alexander. Chet Holmgren was the defensive anchor with five blocks, while Alex Caruso provided disruptive energy off the bench. The Pacers were held to 91 points, with Bennedict Mathurin’s 24 points coming on inefficient shooting as Indiana’s offense never found a rhythm.\n\nSGA’s Strange, Yet Effective, Triple-Double Night.\n\nShai Gilgeous-Alexander posted 29 points and 12 assists despite an uncharacteristically poor 8-for-27 shooting performance. His impact transcended scoring, as he still managed a +11 plus/minus and led his team to a double-digit win. This stat line underscores his value as a floor general who can control a game even when his shot isn’t falling."
+    },
+    {
+      "agent": "analyst",
+      "model": "qwen/qwen3.6-35b-a3b",
+      "content": ""
+    }
+  ],
+  "events": [
+    {
+      "agent": "system",
+      "layer": "system",
+      "type": "start",
+      "content": "Starting MoA pipeline (mode=brief)",
+      "model": "",
+      "timestamp": "2026-11-26T16:07:05.637718",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    },
+    {
+      "agent": "injuries",
+      "layer": "proposer",
+      "type": "tool",
+      "content": "espn_nba_injury_headlines(limit=10) → {   \"source\": \"espn.com/rss/nba\",   \"count\": 0,   \"items\": [] }",
+      "model": "",
+      "timestamp": "2026-11-26T16:07:37.547415",
+      "citation_id": 1,
+      "provider": "ESPN",
+      "tool": "espn_nba_injury_headlines",
+      "retrieved_at": "2026-11-26T16:07:05.640002",
+      "source_url": null
+    },
+    {
+      "agent": "injuries",
+      "layer": "proposer",
+      "type": "done",
+      "content": "none",
+      "model": "google/gemini-2.5-flash",
+      "timestamp": "2026-11-26T16:07:37.547493",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    },
+    {
+      "agent": "news",
+      "layer": "proposer",
+      "type": "tool",
+      "content": "espn_nba_headlines(limit=15) → {   \"source\": \"espn.com/rss/nba\",   \"count\": 0,   \"items\": [] }",
+      "model": "",
+      "timestamp": "2026-11-26T16:07:37.627768",
+      "citation_id": 2,
+      "provider": "ESPN",
+      "tool": "espn_nba_headlines",
+      "retrieved_at": "2026-11-26T16:07:05.640255",
+      "source_url": null
+    },
+    {
+      "agent": "news",
+      "layer": "proposer",
+      "type": "done",
+      "content": "no items",
+      "model": "google/gemini-2.5-flash",
+      "timestamp": "2026-11-26T16:07:37.627809",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    },
+    {
+      "agent": "social",
+      "layer": "proposer",
+      "type": "error",
+      "content": "Error executing tool top_posts: Client error '403 Blocked' for url 'https://www.reddit.com/r/nba/top.json?limit=15&t=day'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
+      "model": "",
+      "timestamp": "2026-11-26T16:07:37.746065",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    },
+    {
+      "agent": "scores",
+      "layer": "proposer",
+      "type": "tool",
+      "content": "nba_stats_get_games(date='2025-06-22') → {   \"data\": [     {       \"id\": 18444564,       \"date\": \"2025-06-22\",       \"season\": 2024,       \"status\": \"Final\",       \"status_state\": \"final\",       \"perio",
+      "model": "",
+      "timestamp": "2026-11-26T16:07:38.058163",
+      "citation_id": 4,
+      "provider": "balldontlie",
+      "tool": "nba_stats_get_games",
+      "retrieved_at": "2026-11-26T16:07:05.640382",
+      "source_url": null
+    },
+    {
+      "agent": "scores",
+      "layer": "proposer",
+      "type": "tool",
+      "content": "nba_stats_get_games(date='2025-06-23') → {   \"data\": [],   \"meta\": {     \"per_page\": 25   } }",
+      "model": "",
+      "timestamp": "2026-11-26T16:07:41.652421",
+      "citation_id": 5,
+      "provider": "balldontlie",
+      "tool": "nba_stats_get_games",
+      "retrieved_at": "2026-11-26T16:07:38.058176",
+      "source_url": null
+    },
+    {
+      "agent": "scores",
+      "layer": "proposer",
+      "type": "done",
+      "content": "Here's a summary of last night's results and upcoming games:\n\n*Last Night Results*\n* The Oklahoma City Thunder defeated the Indiana Pacers 103-91.\n\n*Upcoming Ga",
+      "model": "google/gemini-2.5-flash",
+      "timestamp": "2026-11-26T16:07:42.465803",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    },
+    {
+      "agent": "stats",
+      "layer": "proposer",
+      "type": "tool",
+      "content": "espn_nba_scoreboard: content=[{'type': 'text', 'text': '{\\n  \"source\": \"espn.site.api\",\\n  \"date\": \"2025-06-22\",\\n  \"count\": 1,\\n  \"games\": [\\n    {\\n      \"event_id\": \"401766128\",\\n      \"name\": \"Indiana Pacers at Oklahoma City Thunder\",\\n ",
+      "model": "qwen/qwen3.6-35b-a3b",
+      "timestamp": "2026-11-26T16:07:37.804240",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    },
+    {
+      "agent": "stats",
+      "layer": "proposer",
+      "type": "tool",
+      "content": "espn_nba_boxscore: content=[{'type': 'text', 'text': '{\\n  \"source\": \"espn.site.api\",\\n  \"event_id\": \"401766128\",\\n  \"name\": \"\",\\n  \"status\": \"Final\",\\n  \"teams\": [\\n    {\\n      \"abbrev\": \"IND\",\\n      \"display\": \"Indiana Pacers\",\\n      ",
+      "model": "qwen/qwen3.6-35b-a3b",
+      "timestamp": "2026-11-26T16:07:43.057954",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    },
+    {
+      "agent": "stats",
+      "layer": "proposer",
+      "type": "tool",
+      "content": "espn_nba_headlines: content=[{'type': 'text', 'text': '{\\n  \"source\": \"espn.com/rss/nba\",\\n  \"count\": 0,\\n  \"items\": []\\n}', 'id': 'lc_8e440b39-9ceb-4a7f-a464-69edbfebfe47'}] name='espn_nba_headlines' tool_call_id='chatcmpl-tool-bb00c1a531d",
+      "model": "qwen/qwen3.6-35b-a3b",
+      "timestamp": "2026-11-26T16:07:43.145258",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    },
+    {
+      "agent": "stats",
+      "layer": "proposer",
+      "type": "done",
+      "content": "\n\nHere are the key takeaways from last night's NBA action (June 22, 2025):\n\n*   **Shai Gilgeous-Alexander (Thunder):** 29 points on 8-of-27 shooting (2-of-12 fr",
+      "model": "qwen/qwen3.6-35b-a3b",
+      "timestamp": "2026-11-26T16:07:47.263599",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    },
+    {
+      "agent": "narrative",
+      "layer": "refiner",
+      "type": "done",
+      "content": "Thunder Defense Smothers Pacers in Grind-It-Out Win.\n\nOklahoma City’s 103-91 victory over Indiana was a masterclass in defensive execution, overcoming a poor sh",
+      "model": "deepseek/deepseek-chat-v3.1",
+      "timestamp": "2026-11-26T16:07:55.822376",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    },
+    {
+      "agent": "analyst",
+      "layer": "refiner",
+      "type": "done",
+      "content": "",
+      "model": "qwen/qwen3.6-35b-a3b",
+      "timestamp": "2026-11-26T16:08:06.644441",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    },
+    {
+      "agent": "editor",
+      "layer": "aggregator",
+      "type": "done",
+      "content": "brief ready",
+      "model": "deepseek/deepseek-chat-v3.1",
+      "timestamp": "2026-11-26T16:08:12.188347",
+      "citation_id": null,
+      "provider": null,
+      "tool": null,
+      "retrieved_at": null,
+      "source_url": null
+    }
+  ],
+  "started_at": "2026-11-26T16:07:05.636466",
+  "finished_at": "2026-11-26T16:08:12.189098",
+  "duration_seconds": 66.552632,
+  "metrics": {
+    "run_id": "bfdb49818a784102b7cd2bc5a2166ebf",
+    "mode": "brief",
+    "started_at": "2026-11-26T16:07:05.636452",
+    "finished_at": "2026-11-26T16:08:12.189048",
+    "duration_seconds": 66.55259244699937,
+    "total_input_tokens": 13041,
+    "total_output_tokens": 3491,
+    "total_cost_usd": 0.005176,
+    "llm_call_count": 7,
+    "tool_call_count": 8,
+    "tool_failure_count": 1,
+    "distinct_sources": 11,
+    "sources": [
+      "mcp:espn",
+      "mcp:espn:nba_boxscore",
+      "mcp:espn:nba_headlines",
+      "mcp:espn:nba_scoreboard",
+      "mcp:espn_nba_boxscore",
+      "mcp:espn_nba_headlines",
+      "mcp:espn_nba_injury_headlines",
+      "mcp:espn_nba_scoreboard",
+      "mcp:nba_stats:get_games",
+      "mcp:nba_stats:search_players",
+      "mcp:nba_stats_get_games"
+    ],
+    "agents": [
+      {
+        "agent": "analyst",
+        "model": "qwen/qwen3.6-35b-a3b",
+        "llm_calls": 1,
+        "input_tokens": 766,
+        "output_tokens": 2048,
+        "cost_usd": 0.001382,
+        "llm_latency_ms": 19379.03183800063,
+        "tool_calls": 0,
+        "tool_failures": 0,
+        "tool_latency_ms": 0.0,
+        "wall_clock_ms": 19379.76143800006
+      },
+      {
+        "agent": "editor",
+        "model": "deepseek/deepseek-chat-v3.1",
+        "llm_calls": 1,
+        "input_tokens": 1597,
+        "output_tokens": 524,
+        "cost_usd": 0.0010075900000000003,
+        "llm_latency_ms": 5542.082627999662,
+        "tool_calls": 0,
+        "tool_failures": 0,
+        "tool_latency_ms": 0.0,
+        "wall_clock_ms": 5542.989327999749
+      },
+      {
+        "agent": "injuries",
+        "model": "",
+        "llm_calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_usd": 0.0,
+        "llm_latency_ms": 0.0,
+        "tool_calls": 1,
+        "tool_failures": 0,
+        "tool_latency_ms": 31907.16186700047,
+        "wall_clock_ms": 31907.51816700049
+      },
+      {
+        "agent": "kickoff",
+        "model": "",
+        "llm_calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_usd": 0.0,
+        "llm_latency_ms": 0.0,
+        "tool_calls": 0,
+        "tool_failures": 0,
+        "tool_latency_ms": 0.0,
+        "wall_clock_ms": 0.04569999964587623
+      },
+      {
+        "agent": "narrative",
+        "model": "deepseek/deepseek-chat-v3.1",
+        "llm_calls": 1,
+        "input_tokens": 662,
+        "output_tokens": 205,
+        "cost_usd": 0.00040424000000000005,
+        "llm_latency_ms": 8555.768373999854,
+        "tool_calls": 0,
+        "tool_failures": 0,
+        "tool_latency_ms": 0.0,
+        "wall_clock_ms": 8556.368673999714
+      },
+      {
+        "agent": "news",
+        "model": "",
+        "llm_calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_usd": 0.0,
+        "llm_latency_ms": 0.0,
+        "tool_calls": 1,
+        "tool_failures": 0,
+        "tool_latency_ms": 31987.385163,
+        "wall_clock_ms": 31987.567463000232
+      },
+      {
+        "agent": "scores",
+        "model": "google/gemini-2.5-flash",
+        "llm_calls": 1,
+        "input_tokens": 243,
+        "output_tokens": 63,
+        "cost_usd": 3.7124999999999994e-05,
+        "llm_latency_ms": 811.6874589995859,
+        "tool_calls": 2,
+        "tool_failures": 0,
+        "tool_latency_ms": 36011.704661000294,
+        "wall_clock_ms": 36825.53781999923
+      },
+      {
+        "agent": "social",
+        "model": "",
+        "llm_calls": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cost_usd": 0.0,
+        "llm_latency_ms": 0.0,
+        "tool_calls": 1,
+        "tool_failures": 1,
+        "tool_latency_ms": 32104.836556999544,
+        "wall_clock_ms": 32105.60115699991
+      },
+      {
+        "agent": "stats",
+        "model": "qwen/qwen3.6-35b-a3b",
+        "llm_calls": 3,
+        "input_tokens": 9773,
+        "output_tokens": 651,
+        "cost_usd": 0.0023452,
+        "llm_latency_ms": 8330.516277000243,
+        "tool_calls": 3,
+        "tool_failures": 0,
+        "tool_latency_ms": 36767.55780300118,
+        "wall_clock_ms": 41623.036380000485
+      }
+    ],
+    "tool_calls": [
+      {
+        "agent": "injuries",
+        "tool": "espn_nba_injury_headlines",
+        "latency_ms": 31907.16186700047,
+        "success": true,
+        "error": null,
+        "started_at": "2026-11-26T16:07:05.640002"
+      },
+      {
+        "agent": "news",
+        "tool": "espn_nba_headlines",
+        "latency_ms": 31987.385163,
+        "success": true,
+        "error": null,
+        "started_at": "2026-11-26T16:07:05.640255"
+      },
+      {
+        "agent": "social",
+        "tool": "reddit_top_posts",
+        "latency_ms": 32104.836556999544,
+        "success": false,
+        "error": "Error executing tool top_posts: Client error '403 Blocked' for url 'https://www.reddit.com/r/nba/top.json?limit=15&t=day'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/403",
+        "started_at": "2026-11-26T16:07:05.640489"
+      },
+      {
+        "agent": "stats",
+        "tool": "espn_nba_scoreboard",
+        "latency_ms": 29239.52718000055,
+        "success": true,
+        "error": null,
+        "started_at": "2026-11-26T16:07:37.804144"
+      },
+      {
+        "agent": "scores",
+        "tool": "nba_stats_get_games",
+        "latency_ms": 32417.633541000214,
+        "success": true,
+        "error": null,
+        "started_at": "2026-11-26T16:07:05.640382"
+      },
+      {
+        "agent": "scores",
+        "tool": "nba_stats_get_games",
+        "latency_ms": 3594.0711200000806,
+        "success": true,
+        "error": null,
+        "started_at": "2026-11-26T16:07:38.058176"
+      },
+      {
+        "agent": "stats",
+        "tool": "espn_nba_boxscore",
+        "latency_ms": 3720.324014000653,
+        "success": true,
+        "error": null,
+        "started_at": "2026-11-26T16:07:43.057842"
+      },
+      {
+        "agent": "stats",
+        "tool": "espn_nba_headlines",
+        "latency_ms": 3807.706608999979,
+        "success": true,
+        "error": null,
+        "started_at": "2026-11-26T16:07:43.145172"
+      }
+    ],
+    "moa_cost_usd": 0.005176,
+    "baseline_cost_usd": 0.0,
+    "estimated_price": true
+  },
+  "source_citations": [
+    {
+      "id": 1,
+      "provider": "ESPN",
+      "tool": "espn_nba_injury_headlines",
+      "agent": "injuries",
+      "retrieved_at": "2026-11-26T16:07:05.640002",
+      "url": null,
+      "title": "espn nba injury headlines",
+      "excerpt": "{   \"source\": \"espn.com/rss/nba\",   \"count\": 0,   \"items\": [] }"
+    },
+    {
+      "id": 2,
+      "provider": "ESPN",
+      "tool": "espn_nba_headlines",
+      "agent": "news",
+      "retrieved_at": "2026-11-26T16:07:05.640255",
+      "url": null,
+      "title": "espn nba headlines",
+      "excerpt": "{   \"source\": \"espn.com/rss/nba\",   \"count\": 0,   \"items\": [] }"
+    },
+    {
+      "id": 3,
+      "provider": "ESPN",
+      "tool": "espn_nba_scoreboard",
+      "agent": "stats",
+      "retrieved_at": "2026-11-26T16:07:37.804169",
+      "url": "https://www.espn.com/nba/scoreboard/_/date/20250622",
+      "title": "espn nba scoreboard",
+      "excerpt": "[{'type': 'text', 'text': '{\\n  \"source\": \"espn.site.api\",\\n  \"date\": \"2025-06-22\",\\n  \"count\": 1,\\n  \"games\": [\\n    {\\n      \"event_id\": \"401766128\",\\n      \"name\": \"Indiana Pacers at Oklahoma City Thunder\",\\n      \"short_name\": \"IND @ OKC\",\\n      \"status\": \"Final\",\\n      \"c…"
+    },
+    {
+      "id": 4,
+      "provider": "balldontlie",
+      "tool": "nba_stats_get_games",
+      "agent": "scores",
+      "retrieved_at": "2026-11-26T16:07:05.640382",
+      "url": null,
+      "title": "NBA games (2025-06-22)",
+      "excerpt": "{   \"data\": [     {       \"id\": 18444564,       \"date\": \"2025-06-22\",       \"season\": 2024,       \"status\": \"Final\",       \"status_state\": \"final\",       \"period\": 4,       \"time\": \"Final\",       \"postseason\": true,       \"postponed\": false,       \"home_team_score\": 103,       \"…"
+    },
+    {
+      "id": 6,
+      "provider": "ESPN",
+      "tool": "espn_nba_boxscore",
+      "agent": "stats",
+      "retrieved_at": "2026-11-26T16:07:43.057868",
+      "url": "https://www.espn.com/nba/boxscore/_/gameId/401766128",
+      "title": "espn nba boxscore",
+      "excerpt": "[{'type': 'text', 'text': '{\\n  \"source\": \"espn.site.api\",\\n  \"event_id\": \"401766128\",\\n  \"name\": \"\",\\n  \"status\": \"Final\",\\n  \"teams\": [\\n    {\\n      \"abbrev\": \"IND\",\\n      \"display\": \"Indiana Pacers\",\\n      \"players\": [\\n        {\\n          \"name\": \"Pascal Siakam\",\\n      …"
+    },
+    {
+      "id": 7,
+      "provider": "ESPN",
+      "tool": "espn_nba_headlines",
+      "agent": "stats",
+      "retrieved_at": "2026-11-26T16:07:43.145194",
+      "url": null,
+      "title": "espn nba headlines",
+      "excerpt": "[{'type': 'text', 'text': '{\\n  \"source\": \"espn.com/rss/nba\",\\n  \"count\": 0,\\n  \"items\": []\\n}', 'id': 'lc_8e440b39-9ceb-4a7f-a464-69edbfebfe47'}]"
+    },
+    {
+      "id": 8,
+      "provider": "ESPN",
+      "tool": "espn",
+      "agent": "injuries",
+      "retrieved_at": "2026-11-26T16:08:12.189182",
+      "url": null,
+      "title": "espn",
+      "excerpt": ""
+    },
+    {
+      "id": 9,
+      "provider": "ESPN",
+      "tool": "espn",
+      "agent": "news",
+      "retrieved_at": "2026-11-26T16:08:12.189194",
+      "url": null,
+      "title": "espn",
+      "excerpt": ""
+    },
+    {
+      "id": 10,
+      "provider": "GET",
+      "tool": "get_games",
+      "agent": "scores",
+      "retrieved_at": "2026-11-26T16:08:12.189201",
+      "url": null,
+      "title": "get games",
+      "excerpt": ""
+    },
+    {
+      "id": 11,
+      "provider": "NBA",
+      "tool": "nba_headlines",
+      "agent": "stats",
+      "retrieved_at": "2026-11-26T16:08:12.189205",
+      "url": null,
+      "title": "nba headlines",
+      "excerpt": ""
+    },
+    {
+      "id": 12,
+      "provider": "NBA",
+      "tool": "nba_scoreboard",
+      "agent": "stats",
+      "retrieved_at": "2026-11-26T16:08:12.189209",
+      "url": null,
+      "title": "nba scoreboard",
+      "excerpt": ""
+    },
+    {
+      "id": 13,
+      "provider": "NBA",
+      "tool": "nba_boxscore",
+      "agent": "stats",
+      "retrieved_at": "2026-11-26T16:08:12.189213",
+      "url": null,
+      "title": "nba boxscore",
+      "excerpt": ""
+    },
+    {
+      "id": 14,
+      "provider": "GET",
+      "tool": "get_games",
+      "agent": "stats",
+      "retrieved_at": "2026-11-26T16:08:12.189216",
+      "url": null,
+      "title": "get games",
+      "excerpt": ""
+    },
+    {
+      "id": 15,
+      "provider": "SEARCH",
+      "tool": "search_players",
+      "agent": "stats",
+      "retrieved_at": "2026-11-26T16:08:12.189220",
+      "url": null,
+      "title": "search players",
+      "excerpt": ""
+    }
+  ]
+}

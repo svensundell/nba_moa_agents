@@ -88,7 +88,7 @@ DATABASE_URL="postgresql+asyncpg://..." uv run alembic upgrade head
 
 Build: root directory `frontend`, command `npm run build`, output `dist`.
 
-**Recommended (current production):** point the frontend straight at Railway (no reliance on Vercel rewrites).
+**Historical configuration:** point the frontend straight at Railway (no reliance on Vercel rewrites).
 
 **Vercel environment variable** (Production + Preview; then **Redeploy** — Vite bakes vars at build time):
 

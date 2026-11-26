@@ -2,12 +2,27 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
-from typing import Literal
+from collections.abc import AsyncIterator
+from contextlib import aclosing, asynccontextmanager
+from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi import (
+    APIRouter,
+    Depends,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    WebSocket,
+    WebSocketDisconnect,
+)
 from loguru import logger
+from pydantic import ValidationError
 
+from app.api.account import check_origin, current_owner, require_owner
 from app.api.runner import run_full, run_streaming
 from app.api.schemas import (
     BriefRequest,
@@ -18,6 +33,7 @@ from app.api.schemas import (
 )
 from app.core.config import get_settings
 from app.core.credentials import (
+    demo_runs_remaining,
     resolve_openrouter_api_key,
     use_openrouter_api_key,
     verify_app_access,
@@ -33,38 +49,51 @@ from app.moa.llm import AGENT_MODELS, MODEL_REGISTRY, model_id
 router = APIRouter()
 
 
-def _normalise_language(language: str | None) -> Literal["en", "fr"]:
-    value = (language or "en").strip().lower()
-    return "fr" if value == "fr" else "en"
+Owner = Annotated[str, Depends(require_owner)]
+RUN_TIMEOUT = 120
 
 
-async def _require_run_access(
+def _require_run_access(
+    request: Request,
     x_openrouter_key: str | None = Header(default=None, alias="X-OpenRouter-Key"),
     x_app_access_token: str | None = Header(default=None, alias="X-App-Access-Token"),
     authorization: str | None = Header(default=None),
-) -> str:
+) -> str | None:
+    check_origin(request)
     verify_app_access(header_token=x_app_access_token, authorization=authorization)
-    return await resolve_openrouter_api_key(x_openrouter_key)
+    return x_openrouter_key
 
 
-def _ws_error_message(exc: HTTPException) -> str:
-    detail = exc.detail
-    return detail if isinstance(detail, str) else str(detail)
+@asynccontextmanager
+async def _run_access(api_key: str | None) -> AsyncIterator[None]:
+    try:
+        async with asyncio.timeout(RUN_TIMEOUT):
+            with use_openrouter_api_key(await resolve_openrouter_api_key(api_key)):
+                yield
+    except TimeoutError:
+        raise HTTPException(504, "The run exceeded its time limit.") from None
 
 
 @router.get("/health", response_model=HealthResponse)
-async def health() -> HealthResponse:
+async def health(response: Response) -> HealthResponse:
     settings = get_settings()
+    response.headers["Cache-Control"] = "no-store"
+    sponsored = bool(settings.demo_openrouter_key.get_secret_value().strip())
+    remaining = None
     database_ok = False
     try:
         await db_ping()
+        if sponsored:
+            remaining = await demo_runs_remaining(settings.demo_daily_runs)
         database_ok = True
     except Exception:
         database_ok = False
     return HealthResponse(
         status="ok" if database_ok else "degraded",
         openrouter_byok=True,
-        sponsored_runs=bool(settings.demo_openrouter_key.get_secret_value().strip()),
+        sponsored_runs=sponsored,
+        demo_daily_runs=settings.demo_daily_runs if sponsored else None,
+        demo_runs_remaining=remaining,
         has_balldontlie=settings.has_balldontlie,
         database_ok=database_ok,
         mcp_initialised=mcp_registry.initialised,
@@ -93,45 +122,54 @@ async def agents() -> dict:
 @router.post("/brief", response_model=RunResult)
 async def brief(
     req: BriefRequest,
-    api_key: str = Depends(_require_run_access),
+    request: Request,
+    api_key: str | None = Depends(_require_run_access),
 ) -> RunResult:
-    with use_openrouter_api_key(api_key):
-        return await run_full("brief", date=req.date, language=_normalise_language(req.language))
+    async with _run_access(api_key):
+        return await run_full(
+            "brief",
+            date=req.date.isoformat() if req.date else None,
+            language=req.language,
+            owner_id=current_owner(request),
+        )
 
 
 @router.post("/query", response_model=RunResult)
 async def query(
     req: QueryRequest,
-    api_key: str = Depends(_require_run_access),
+    request: Request,
+    api_key: str | None = Depends(_require_run_access),
 ) -> RunResult:
-    if not req.messages and not req.query.strip():
-        raise HTTPException(status_code=422, detail="Provide `query` or non-empty `messages`.")
-    with use_openrouter_api_key(api_key):
+    async with _run_access(api_key):
         return await run_full(
             "query",
-            query=req.query,
+            query=req.messages[-1].content if req.messages else req.query,
             messages=[m.model_dump(mode="json") for m in req.messages],
-            date=req.date,
-            language=_normalise_language(req.language),
+            date=req.date.isoformat() if req.date else None,
+            language=req.language,
+            owner_id=current_owner(request),
         )
 
 
 @router.post("/compare", response_model=RunResult)
 async def compare(
     req: CompareRequest,
-    api_key: str = Depends(_require_run_access),
+    request: Request,
+    api_key: str | None = Depends(_require_run_access),
 ) -> RunResult:
-    with use_openrouter_api_key(api_key):
+    async with _run_access(api_key):
         return await run_full(
             "compare",
             query=req.query,
-            date=req.date,
-            language=_normalise_language(req.language),
+            date=req.date.isoformat() if req.date else None,
+            language=req.language,
+            owner_id=current_owner(request),
         )
 
 
 @router.get("/runs", response_model=list[RunSummary])
 async def list_runs(
+    owner: Owner,
     limit: int = Query(default=50, ge=1, le=500),
     mode: str | None = Query(default=None, pattern="^(brief|query|compare)$"),
 ) -> list[RunSummary]:
@@ -145,17 +183,17 @@ async def list_runs(
         repo = get_repository()
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return await repo.list_runs(limit=limit, mode=mode)
+    return await repo.list_runs(owner_id=owner, limit=limit, mode=mode)
 
 
 @router.get("/runs/{run_id}", response_model=RunResult)
-async def get_run(run_id: str) -> RunResult:
+async def get_run(run_id: str, owner: Owner) -> RunResult:
     """Return the full :class:`RunResult` payload for a persisted run."""
     try:
         repo = get_repository()
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    payload = await repo.get_run_payload(run_id)
+    payload = await repo.get_run_payload(run_id, owner_id=owner)
     if payload is None:
         raise HTTPException(status_code=404, detail=f"Run {run_id} not found")
     return RunResult.model_validate(payload)
@@ -163,6 +201,7 @@ async def get_run(run_id: str) -> RunResult:
 
 @router.get("/metrics/summary", response_model=DashboardSummary)
 async def metrics_summary(
+    owner: Owner,
     last_n: int = Query(default=100, ge=1, le=1000),
     mode: str | None = Query(default=None, pattern="^(brief|query|compare)$"),
 ) -> DashboardSummary:
@@ -171,11 +210,12 @@ async def metrics_summary(
         repo = get_repository()
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return await repo.summary(last_n=last_n, mode=mode)
+    return await repo.summary(owner_id=owner, last_n=last_n, mode=mode)
 
 
 @router.get("/memory/briefs", response_model=list[BriefSummary])
 async def list_memory_briefs(
+    owner: Owner,
     limit: int = Query(default=50, ge=1, le=200),
 ) -> list[BriefSummary]:
     """Indexed Daily Briefs available to NBA Copilot memory search."""
@@ -183,79 +223,92 @@ async def list_memory_briefs(
         memory = get_memory_service()
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
-    return await memory.list_briefs(limit=limit)
+    return await memory.list_briefs(limit=limit, owner_id=owner)
 
 
 @router.post("/memory/search", response_model=MemorySearchResult)
 async def search_memory(
     req: MemorySearchRequest,
-    api_key: str = Depends(_require_run_access),
+    owner: Owner,
+    api_key: str | None = Depends(_require_run_access),
 ) -> MemorySearchResult:
     """Semantic search over archived Daily Brief chunks (debug / UI)."""
     try:
         memory = get_memory_service()
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
+    async with _run_access(api_key):
+        return await memory.search(req.query, days=req.days, limit=req.limit, owner_id=owner)
+
+
+@router.delete("/runs", status_code=204)
+async def clear_history(request: Request, owner: Owner) -> Response:
+    check_origin(request)
+    await get_repository().clear_history(owner)
+    return Response(status_code=204, headers={"Cache-Control": "private, no-store"})
+
+
+async def _send_run(websocket: WebSocket) -> None:
+    raw = await asyncio.wait_for(websocket.receive_text(), timeout=15)
+    if len(raw.encode()) > 24_000:
+        raise ValueError("Request too large")
+    payload = json.loads(raw)
+    mode = payload.get("mode", "brief")
+    if mode == "query":
+        query_req = QueryRequest.model_validate(payload)
+        req: BriefRequest = query_req
+        query = query_req.messages[-1].content if query_req.messages else query_req.query
+        messages = [m.model_dump(mode="json") for m in query_req.messages]
+    elif mode == "brief":
+        req = BriefRequest.model_validate(payload)
+        query, messages = "", None
+    elif mode == "compare":
+        compare_req = CompareRequest.model_validate(payload)
+        req = compare_req
+        query, messages = compare_req.query, None
+    else:
+        raise ValueError("Unknown mode")
+
+    verify_app_access(header_token=str(payload.get("app_access_token") or ""))
+    api_key = await resolve_openrouter_api_key(str(payload.get("openrouter_api_key") or ""))
     with use_openrouter_api_key(api_key):
-        return await memory.search(req.query, days=req.days, limit=req.limit)
+        async with aclosing(
+            run_streaming(
+                mode,
+                query=query,
+                messages=messages,
+                date=req.date.isoformat() if req.date else None,
+                language=req.language,
+                owner_id=current_owner(websocket),
+            )
+        ) as frames:
+            async for frame in frames:
+                await websocket.send_json(frame)
 
 
 @router.websocket("/ws/run")
 async def ws_run(websocket: WebSocket) -> None:
-    """Streaming endpoint — the frontend uses this to watch agents work live.
-
-    Protocol:
-      Client sends one JSON frame: {"mode": "brief|query|compare",
-                                    "query": "...", "date": "..."}
-      Server streams JSON frames as documented in ``run_streaming``.
-    """
+    try:
+        check_origin(websocket)
+    except HTTPException:
+        await websocket.close(code=1008)
+        return
     await websocket.accept()
     try:
-        msg = await websocket.receive_text()
-        payload = json.loads(msg)
-        mode = payload.get("mode", "brief")
-        if mode not in {"brief", "query", "compare"}:
-            await websocket.send_json({"kind": "error", "message": f"unknown mode {mode}"})
-            await websocket.close()
-            return
-        if (
-            mode == "query"
-            and not str(payload.get("query", "")).strip()
-            and not payload.get("messages")
-        ):
-            await websocket.send_json(
-                {"kind": "error", "message": "Provide `query` or non-empty `messages`."}
-            )
-            await websocket.close()
-            return
-
-        try:
-            verify_app_access(header_token=str(payload.get("app_access_token") or ""))
-            api_key = await resolve_openrouter_api_key(
-                str(payload.get("openrouter_api_key") or "") or None
-            )
-        except HTTPException as exc:
-            await websocket.send_json({"kind": "error", "message": _ws_error_message(exc)})
-            await websocket.close()
-            return
-
-        with use_openrouter_api_key(api_key):
-            async for frame in run_streaming(
-                mode,
-                query=payload.get("query", ""),
-                messages=payload.get("messages"),
-                date=payload.get("date"),
-                language=_normalise_language(str(payload.get("language", "en"))),
-            ):
-                await websocket.send_json(frame)
-
-        await websocket.close()
+        async with asyncio.timeout(RUN_TIMEOUT):
+            await _send_run(websocket)
     except WebSocketDisconnect:
-        logger.info("WebSocket client disconnected")
+        return
+    except (ValueError, ValidationError, AttributeError):
+        await websocket.send_json(
+            {"kind": "error", "code": "invalid", "message": "Invalid run request."}
+        )
+    except HTTPException as exc:
+        code = {429: "quota", 401: "access"}.get(exc.status_code, "generation")
+        await websocket.send_json({"kind": "error", "code": code, "message": str(exc.detail)})
+    except TimeoutError:
+        await websocket.send_json({"kind": "error", "code": "timeout", "message": "Run timed out."})
     except Exception as exc:
-        logger.exception(f"WebSocket failed: {exc}")
-        try:
-            await websocket.send_json({"kind": "error", "message": str(exc)})
-        except Exception:
-            pass
-        await websocket.close()
+        logger.warning("WebSocket run failed ({})", type(exc).__name__)
+        await websocket.send_json({"kind": "error", "code": "generation", "message": "Run failed."})
+    await websocket.close()

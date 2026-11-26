@@ -63,7 +63,7 @@ export function SourcesBibliography({
         )}
       </div>
 
-      <ol className="space-y-3 list-none m-0 p-0">
+      <ol className="space-y-3 list-none m-0 p-0 [overflow-wrap:anywhere]">
         {citations.map((c) => (
           <li
             key={c.id}
@@ -83,7 +83,7 @@ export function SourcesBibliography({
                 </span>
                 <span className="text-xs font-mono text-muted">{c.tool}</span>
               </div>
-              {c.url && (
+              {c.url?.startsWith("https://") && (
                 <a
                   href={c.url}
                   target="_blank"
@@ -103,7 +103,7 @@ export function SourcesBibliography({
               <div>
                 <dt className="uppercase tracking-wide">{t.retrieved}</dt>
                 <dd className="text-slate-800">
-                  {new Date(c.retrieved_at).toLocaleString()}
+                  {new Date(c.retrieved_at).toLocaleString(language)}
                 </dd>
               </div>
             </dl>

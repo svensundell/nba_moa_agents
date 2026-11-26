@@ -54,9 +54,10 @@ MODEL_REGISTRY: dict[str, ModelSpec] = {
     ),
     "open_query": ModelSpec(
         name="open_query",
-        model_id="deepseek/deepseek-v4-pro",
+        model_id="openai/gpt-4.1-mini",
+        max_tokens=1000,
         temperature=0.2,
-        description="High-accuracy tool-using model for NBA Copilot.",
+        description="Low-latency tool-using model for NBA Copilot.",
     ),
 }
 
@@ -74,6 +75,8 @@ def get_model(name: str, *, temperature: float | None = None) -> BaseChatModel:
         base_url=OPENROUTER_BASE_URL,
         temperature=temp,
         max_tokens=spec.max_tokens,
+        timeout=35,
+        max_retries=1,
     )
 
 

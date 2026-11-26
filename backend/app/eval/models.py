@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -12,8 +12,10 @@ from app.db import Base
 
 class RunRow(Base):
     __tablename__ = "runs"
+    __table_args__ = (Index("ix_runs_owner_started", "owner_id", "started_at"),)
 
     run_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    owner_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     mode: Mapped[str] = mapped_column(String(16), nullable=False)
     date: Mapped[str] = mapped_column(String(32), nullable=False)
     query: Mapped[str] = mapped_column(Text, nullable=False, default="")

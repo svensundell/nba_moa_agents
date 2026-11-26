@@ -121,13 +121,8 @@ async def call_llm(
                 output_tokens=0,
                 latency_ms=(time.monotonic() - start) * 1000.0,
             )
-        logger.bind(agent=agent).error(
-            f"LLM call failed (logical={model_name}, resolved={resolved_model}): {exc}"
-        )
-        return (
-            f"[error: {agent} LLM call failed "
-            f"(logical={model_name}, resolved={resolved_model}): {exc}]"
-        )
+        logger.bind(agent=agent).warning("LLM {} failed ({})", resolved_model, type(exc).__name__)
+        return f"[error: {agent} LLM call failed]"
 
     if tracker is not None:
         in_tok, out_tok = _usage_from_response(response)
@@ -190,10 +185,9 @@ async def mcp_invoke(
         else:
             text = _extract_text(await tool.ainvoke(arguments))
     except Exception as exc:  # pragma: no cover - depends on MCP subprocess
-        _record(False, str(exc))
-        logger.bind(agent=agent).error(f"MCP {tool_name} failed: {exc}")
-        ev = event(agent, _layer_for(agent), "error", content=f"{tool_name} failed: {exc}")
-        raise MCPToolError(str(exc)) from exc
+        logger.bind(agent=agent).warning("MCP {} failed ({})", tool_name, type(exc).__name__)
+        _record(False, "Data unavailable")
+        raise MCPToolError(f"{tool_name} could not retrieve data") from None
     _record(True)
     cite = None
     if tracker is not None:

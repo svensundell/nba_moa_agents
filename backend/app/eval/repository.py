@@ -17,6 +17,7 @@ from app.eval.schemas import (
     RunSummary,
     ToolCallMetric,
 )
+from app.memory.models import BriefRow
 
 
 class EvalRepository:
@@ -35,6 +36,7 @@ class EvalRepository:
         self,
         *,
         metrics: RunMetrics,
+        owner_id: str,
         date: str,
         query: str,
         language: str,
@@ -45,6 +47,7 @@ class EvalRepository:
         async with self._session_factory() as session, session.begin():
             stmt = insert(RunRow).values(
                 run_id=metrics.run_id,
+                owner_id=owner_id,
                 mode=metrics.mode,
                 date=date,
                 query=query,
@@ -66,9 +69,10 @@ class EvalRepository:
                 single_llm_answer=single_llm_answer,
                 payload_json=json.dumps(payload, default=str),
             )
-            await session.execute(
+            saved = await session.scalar(
                 stmt.on_conflict_do_update(
                     index_elements=[RunRow.run_id],
+                    where=RunRow.owner_id == owner_id,
                     set_={
                         "mode": metrics.mode,
                         "date": date,
@@ -91,8 +95,10 @@ class EvalRepository:
                         "single_llm_answer": single_llm_answer,
                         "payload_json": json.dumps(payload, default=str),
                     },
-                )
+                ).returning(RunRow.run_id)
             )
+            if saved is None:
+                return
 
             await session.execute(
                 delete(AgentMetricRow).where(AgentMetricRow.run_id == metrics.run_id)
@@ -135,6 +141,7 @@ class EvalRepository:
     async def list_runs(
         self,
         *,
+        owner_id: str,
         limit: int = 50,
         mode: str | None = None,
     ) -> list[RunSummary]:
@@ -157,7 +164,7 @@ class EvalRepository:
                 RunRow.moa_cost_usd,
                 RunRow.baseline_cost_usd,
                 RunRow.estimated_price,
-            )
+            ).where(RunRow.owner_id == owner_id)
             if mode:
                 stmt = stmt.where(RunRow.mode == mode)
             stmt = stmt.order_by(desc(RunRow.started_at)).limit(limit)
@@ -186,10 +193,12 @@ class EvalRepository:
             for row in rows
         ]
 
-    async def get_run_payload(self, run_id: str) -> dict[str, Any] | None:
+    async def get_run_payload(self, run_id: str, *, owner_id: str) -> dict[str, Any] | None:
         async with self._session_factory() as session:
             payload = await session.scalar(
-                select(RunRow.payload_json).where(RunRow.run_id == run_id)
+                select(RunRow.payload_json).where(
+                    RunRow.run_id == run_id, RunRow.owner_id == owner_id
+                )
             )
         if payload is None:
             return None
@@ -198,6 +207,15 @@ class EvalRepository:
             return data
         except (TypeError, ValueError):
             return None
+
+    async def clear_history(self, owner_id: str) -> None:
+        async with self._session_factory() as session, session.begin():
+            deleted = await session.scalars(
+                delete(RunRow).where(RunRow.owner_id == owner_id).returning(RunRow.run_id)
+            )
+            run_ids = deleted.all()
+            if run_ids:
+                await session.execute(delete(BriefRow).where(BriefRow.run_id.in_(run_ids)))
 
     async def get_agent_metrics(self, run_id: str) -> list[AgentMetrics]:
         async with self._session_factory() as session:
@@ -268,6 +286,7 @@ class EvalRepository:
     async def summary(
         self,
         *,
+        owner_id: str,
         last_n: int = 100,
         mode: str | None = None,
     ) -> DashboardSummary:
@@ -281,7 +300,7 @@ class EvalRepository:
                 RunRow.moa_cost_usd,
                 RunRow.baseline_cost_usd,
                 RunRow.started_at,
-            )
+            ).where(RunRow.owner_id == owner_id)
             if mode:
                 stmt = stmt.where(RunRow.mode == mode)
             rows = (

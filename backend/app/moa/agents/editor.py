@@ -54,7 +54,9 @@ Rules:
 - Stay strictly within the facts from the analyst sheet and the proposers.
 - For Standout Statlines, only use lines that already appear in the stats draft.
   If the stats draft has no exact statline, write "No notable items today.".
-- Never invent stats, scores, or quotes.
+- Never invent stats, scores, or quotes. Check each Quick Hit against the exact
+  stat line. Only write triple-double or double-double if the cited box score
+  explicitly supports that claim across three or two stat categories.
 - If a section has no data, write "No notable items today." instead of skipping.
 - No emojis, no clickbait headlines.
 - When stating a fact grounded in a reporter draft, add an inline citation [n]

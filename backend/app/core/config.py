@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     serve_frontend: bool = False
     log_level: str = Field(default="INFO")
     allowed_origins: str = Field(default="http://localhost:5173")
+    public_origin: str = ""
+    google_oauth_client_id: str = ""
+    google_oauth_client_secret: SecretStr = SecretStr("")
+    session_secret: SecretStr = SecretStr("")
     # When set, clients must send Authorization: Bearer <token> or X-App-Access-Token.
     app_access_token: str = Field(default="")
 
@@ -45,7 +49,16 @@ class Settings(BaseSettings):
 
     @property
     def origins(self) -> list[str]:
-        return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+        return [o.strip().rstrip("/") for o in self.allowed_origins.split(",") if o.strip()]
+
+    @property
+    def google_sign_in(self) -> bool:
+        return bool(
+            self.google_oauth_client_id
+            and self.google_oauth_client_secret.get_secret_value()
+            and len(self.session_secret.get_secret_value()) >= 32
+            and self.public_origin
+        )
 
     @property
     def has_balldontlie(self) -> bool:

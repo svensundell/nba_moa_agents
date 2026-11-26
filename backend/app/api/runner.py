@@ -7,7 +7,7 @@ This module is also the single place where:
 
 * A :class:`~app.eval.RunTracker` is created and bound to the current
   task, so every nested LLM / MCP call is automatically observed.
-* The finalised :class:`~app.eval.RunMetrics` are persisted to SQLite via
+* The finalised :class:`~app.eval.RunMetrics` are persisted to PostgreSQL via
   :class:`~app.eval.repository.EvalRepository`, and attached to the
   :class:`~app.api.schemas.RunResult` returned to the caller.
 
@@ -18,7 +18,7 @@ the helpers in ``app.moa.agents.base``.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from datetime import datetime
 from typing import Literal
 
@@ -47,6 +47,7 @@ async def _run_copilot_for_compare(
     query: str,
     date: str | None,
     language: Literal["en", "fr"],
+    owner_id: str | None,
 ) -> RunResult:
     """NBA Copilot baseline for compare mode (tool-using agent, all MCP tools)."""
     tracker = current_tracker()
@@ -56,11 +57,13 @@ async def _run_copilot_for_compare(
                 query=_compare_copilot_query(query),
                 date=date,
                 language=language,
+                owner_id=owner_id,
             )
     return await run_open_query(
         query=_compare_copilot_query(query),
         date=date,
         language=language,
+        owner_id=owner_id,
     )
 
 
@@ -151,6 +154,7 @@ async def _persist_run(
     metrics: RunMetrics,
     result: RunResult,
     language: str,
+    owner_id: str | None,
 ) -> None:
     """Best-effort write to the eval repository.
 
@@ -158,6 +162,8 @@ async def _persist_run(
     errors are logged and swallowed. The metrics are still attached to
     the in-memory ``RunResult`` returned to the caller.
     """
+    if owner_id is None:
+        return
     try:
         repo = get_repository()
     except RuntimeError:
@@ -165,6 +171,7 @@ async def _persist_run(
     try:
         await repo.save_run(
             metrics=metrics,
+            owner_id=owner_id,
             date=result.date,
             query=result.query,
             language=language,
@@ -172,8 +179,8 @@ async def _persist_run(
             single_llm_answer=result.single_llm_answer,
             payload=result.model_dump(mode="json"),
         )
-    except Exception as exc:  # pragma: no cover - depends on SQLite
-        logger.error(f"Failed to persist run {metrics.run_id}: {exc}")
+    except Exception as exc:  # pragma: no cover - depends on database
+        logger.error("Run persistence failed ({})", type(exc).__name__)
 
 
 async def _index_brief_memory(
@@ -181,9 +188,10 @@ async def _index_brief_memory(
     result: RunResult,
     metrics: RunMetrics,
     language: str,
+    owner_id: str | None,
 ) -> None:
     """Best-effort indexing of Daily Brief markdown for NBA Copilot RAG."""
-    if result.mode != "brief" or not result.final_brief.strip():
+    if owner_id is None or result.mode != "brief" or not result.final_brief.strip():
         return
     try:
         memory = get_memory_service()
@@ -193,11 +201,12 @@ async def _index_brief_memory(
             date_value=result.date,
             language=language,
             markdown=result.final_brief,
+            owner_id=owner_id,
         )
     except RuntimeError:
         return
     except Exception as exc:  # pragma: no cover
-        logger.warning(f"Brief memory indexing failed for {metrics.run_id}: {exc}")
+        logger.warning("Brief memory indexing failed ({})", type(exc).__name__)
 
 
 async def run_full(
@@ -207,24 +216,29 @@ async def run_full(
     messages: list[dict[str, str]] | None = None,
     date: str | None = None,
     language: Literal["en", "fr"] = "en",
+    owner_id: str | None = None,
 ) -> RunResult:
     """Run the graph end-to-end and return the consolidated RunResult."""
     tracker = RunTracker(mode=mode)
     started_at = datetime.now()
     with use_tracker(tracker):
         if mode == "query":
-            result = await run_open_query(
-                query=query,
-                messages=messages,
-                date=date,
-                language=language,
-            )
+            async with tracker.time_agent("nba_copilot"):
+                result = await run_open_query(
+                    query=query,
+                    messages=messages,
+                    date=date,
+                    language=language,
+                    owner_id=owner_id,
+                )
         else:
             state: MoAState = initial_state(mode, query=query, date=date, language=language)
             if mode == "compare":
                 final_state, copilot = await asyncio.gather(
                     GRAPH.ainvoke(state),
-                    _run_copilot_for_compare(query=query, date=date, language=language),
+                    _run_copilot_for_compare(
+                        query=query, date=date, language=language, owner_id=owner_id
+                    ),
                 )
                 final_state = _merge_compare_results(final_state, copilot)
             else:
@@ -239,8 +253,8 @@ async def run_full(
     metrics = tracker.finalize()
     result.metrics = metrics
     result = _attach_citations(result)
-    await _persist_run(metrics=metrics, result=result, language=language)
-    await _index_brief_memory(result=result, metrics=metrics, language=language)
+    await _persist_run(metrics=metrics, result=result, language=language, owner_id=owner_id)
+    await _index_brief_memory(result=result, metrics=metrics, language=language, owner_id=owner_id)
     return result
 
 
@@ -251,7 +265,8 @@ async def run_streaming(
     messages: list[dict[str, str]] | None = None,
     date: str | None = None,
     language: Literal["en", "fr"] = "en",
-) -> AsyncIterator[dict]:
+    owner_id: str | None = None,
+) -> AsyncGenerator[dict, None]:
     """Async iterator yielding JSON-serialisable frames as the pipeline runs.
 
     Frame schema::
@@ -270,24 +285,23 @@ async def run_streaming(
                     messages=messages,
                     date=date,
                     language=language,
+                    owner_id=owner_id,
                 ):
                     if frame.get("kind") == "result":
                         final_result = RunResult.model_validate(frame["result"])
-                        metrics = tracker.finalize()
-                        final_result.metrics = metrics
-                        final_result = _attach_citations(final_result)
-                        frame = {
-                            "kind": "result",
-                            "result": final_result.model_dump(mode="json"),
-                        }
-                    yield frame
+                    else:
+                        yield frame
             if final_result is not None:
-                run_metrics = final_result.metrics or tracker.finalize()
+                metrics = tracker.finalize()
+                final_result.metrics = metrics
+                final_result = _attach_citations(final_result)
                 await _persist_run(
-                    metrics=run_metrics,
+                    metrics=metrics,
                     result=final_result,
                     language=language,
+                    owner_id=owner_id,
                 )
+                yield {"kind": "result", "result": final_result.model_dump(mode="json")}
             return
 
         started_at = datetime.now()
@@ -300,34 +314,41 @@ async def run_streaming(
         copilot_task: asyncio.Task[RunResult] | None = None
         if mode == "compare":
             copilot_task = asyncio.create_task(
-                _run_copilot_for_compare(query=query, date=date, language=language)
+                _run_copilot_for_compare(
+                    query=query, date=date, language=language, owner_id=owner_id
+                )
             )
 
-        async for node_name, update in _stream_graph(state):
-            for ev in update.get("events", []) or []:
-                if isinstance(ev, AgentEvent):
-                    yield {"kind": "event", "event": ev.model_dump(mode="json")}
-                else:  # already a dict
-                    yield {"kind": "event", "event": ev}
+        try:
+            async for node_name, update in _stream_graph(state):
+                for ev in update.get("events", []) or []:
+                    if isinstance(ev, AgentEvent):
+                        yield {"kind": "event", "event": ev.model_dump(mode="json")}
+                    else:  # already a dict
+                        yield {"kind": "event", "event": ev}
 
-            for k, v in update.items():
-                existing = accumulated.get(k)
-                if isinstance(existing, list) and isinstance(v, list):
-                    accumulated[k] = existing + v  # type: ignore[literal-required]
-                else:
-                    accumulated[k] = v  # type: ignore[literal-required]
+                for k, v in update.items():
+                    existing = accumulated.get(k)
+                    if isinstance(existing, list) and isinstance(v, list):
+                        accumulated[k] = existing + v  # type: ignore[literal-required]
+                    else:
+                        accumulated[k] = v  # type: ignore[literal-required]
 
-            yield {"kind": "node_done", "node": node_name}
-            await asyncio.sleep(0)
+                yield {"kind": "node_done", "node": node_name}
+                await asyncio.sleep(0)
 
-        if copilot_task is not None:
-            copilot = await copilot_task
-            for ev in copilot.events:
-                if isinstance(ev, AgentEvent):
-                    yield {"kind": "event", "event": ev.model_dump(mode="json")}
-                else:
-                    yield {"kind": "event", "event": ev}
-            accumulated = _merge_compare_results(accumulated, copilot)
+            if copilot_task is not None:
+                copilot = await copilot_task
+                for ev in copilot.events:
+                    if isinstance(ev, AgentEvent):
+                        yield {"kind": "event", "event": ev.model_dump(mode="json")}
+                    else:
+                        yield {"kind": "event", "event": ev}
+                accumulated = _merge_compare_results(accumulated, copilot)
+        finally:
+            if copilot_task is not None and not copilot_task.done():
+                copilot_task.cancel()
+                await asyncio.gather(copilot_task, return_exceptions=True)
 
         _record_sources(tracker, accumulated)
         metrics = tracker.finalize()
@@ -337,9 +358,11 @@ async def run_streaming(
             started_at=started_at,
             metrics=metrics,
         )
+        await _persist_run(metrics=metrics, result=result, language=language, owner_id=owner_id)
         yield {
             "kind": "result",
             "result": result.model_dump(mode="json"),
         }
-        await _persist_run(metrics=metrics, result=result, language=language)
-        await _index_brief_memory(result=result, metrics=metrics, language=language)
+        await _index_brief_memory(
+            result=result, metrics=metrics, language=language, owner_id=owner_id
+        )

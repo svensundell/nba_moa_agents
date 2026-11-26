@@ -14,8 +14,6 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from alembic import context
 from app.core.config import get_settings
 from app.db.base import Base
-from app.eval import models as _eval_models  # noqa: F401
-from app.memory import models as _memory_models  # noqa: F401
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 
@@ -23,11 +21,13 @@ _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 def _alembic_config() -> Config:
     cfg = Config(str(_BACKEND_ROOT / "alembic.ini"))
     cfg.set_main_option("script_location", str(_BACKEND_ROOT / "alembic"))
-    cfg.set_main_option("sqlalchemy.url", get_settings().database_url)
     return cfg
 
 
 def _run_migrations(connection) -> None:  # type: ignore[no-untyped-def]
+    from app.eval import models as _eval_models  # noqa: F401
+    from app.memory import models as _memory_models  # noqa: F401
+
     cfg = _alembic_config()
     script = ScriptDirectory.from_config(cfg)
 

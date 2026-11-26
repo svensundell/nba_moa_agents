@@ -15,6 +15,17 @@ from app.db.session import get_engine
 _openrouter_api_key: ContextVar[str | None] = ContextVar("openrouter_api_key", default=None)
 
 
+async def demo_runs_remaining(limit: int) -> int:
+    async with get_engine().connect() as conn:
+        used = await conn.scalar(
+            text("""
+            SELECT requests FROM demo_usage
+            WHERE day = (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date
+        """)
+        )
+    return max(0, limit - int(used or 0))
+
+
 async def resolve_openrouter_api_key(header_key: str | None = None) -> str:
     """Pick the OpenRouter key for this request (header, WS payload, or request context)."""
     if header_key and header_key.strip():

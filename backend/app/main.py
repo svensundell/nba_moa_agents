@@ -8,8 +8,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from loguru import logger
+from starlette.middleware.sessions import SessionMiddleware
 
 from app import __version__
+from app.api.account import router as account_router
 from app.api.routes import router
 from app.core.config import PROJECT_ROOT, get_settings
 from app.core.logging import configure_logging
@@ -45,7 +47,7 @@ async def lifespan(app: FastAPI):
         await eval_repo.initialize()
         await memory.initialize()
     except Exception as exc:  # pragma: no cover - depends on network/filesystem
-        logger.error(f"Repository initialisation failed: {exc}")
+        logger.error("Repository initialisation failed ({})", type(exc).__name__)
         raise
 
     try:
@@ -87,6 +89,16 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    if settings.google_sign_in:
+        app.add_middleware(
+            SessionMiddleware,
+            secret_key=settings.session_secret.get_secret_value(),
+            session_cookie="nba_oauth_state",
+            max_age=600,
+            path="/api/account/google",
+            https_only=settings.public_origin.startswith("https://"),
+        )
+    app.include_router(account_router, prefix="/api")
     app.include_router(router, prefix="/api")
 
     if settings.serve_frontend:
