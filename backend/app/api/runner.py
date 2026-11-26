@@ -22,6 +22,7 @@ from collections.abc import AsyncGenerator, AsyncIterator
 from datetime import datetime
 from typing import Literal
 
+from fastapi import HTTPException
 from loguru import logger
 
 from app.api.schemas import ProposalView, RefinementView, RunResult
@@ -125,12 +126,15 @@ def _to_run_result(
     started_at: datetime,
     metrics: RunMetrics | None = None,
 ) -> RunResult:
+    final_brief = state.get("final_brief", "").strip()
+    if not final_brief or final_brief.startswith("[error:"):
+        raise HTTPException(502, "The brief editor could not finish.")
     finished_at = datetime.now()
     result = RunResult(
         mode=mode,
         date=state.get("date", ""),
         query=state.get("query", ""),
-        final_brief=state.get("final_brief", ""),
+        final_brief=final_brief,
         single_llm_answer=state.get("single_llm_answer", ""),
         proposals=[
             ProposalView(agent=p.agent, model=p.model, summary=p.summary, sources=p.sources)

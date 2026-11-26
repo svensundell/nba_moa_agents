@@ -184,10 +184,12 @@ async def stream_open_query_frames(
                 record_streamed_llm_call(AGENT, model, event, fallback_latency_ms=elapsed)
                 if isinstance(output, AIMessage) and not output.tool_calls:
                     answer = _text(output.content)
-            elif kind == "on_tool_end" and isinstance(output, ToolMessage):
-                tool_event = _tool_event(output, model)
-                events.append(tool_event)
-                yield {"kind": "event", "event": tool_event.model_dump(mode="json")}
+            elif kind == "on_chain_end" and event["name"] == "tools" and isinstance(output, dict):
+                for message in output.get("messages", []):
+                    if isinstance(message, ToolMessage):
+                        tool_event = _tool_event(message, model)
+                        events.append(tool_event)
+                        yield {"kind": "event", "event": tool_event.model_dump(mode="json")}
         if not answer.strip():
             raise ValueError("No final answer")
     except Exception as exc:
