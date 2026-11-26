@@ -111,9 +111,9 @@ type Copy = (typeof COPY)[LanguageCode];
 function currentView(): { view: View; example: Example } {
   const params = new URLSearchParams(location.search);
   const view = params.get("view");
-  if (view === "brief" || view === "compare" || view === "history") return { view, example: "finals" };
+  if (view === "query" || view === "brief" || view === "compare" || view === "history") return { view, example: "finals" };
   if (params.has("example")) return { view: "examples", example: params.get("example") === "brief" ? "brief" : "finals" };
-  return { view: "query", example: "finals" };
+  return { view: "brief", example: "finals" };
 }
 
 export default function App() {
@@ -197,7 +197,7 @@ export default function App() {
   }, [view, recordedPath, fallback]);
 
   function move(next: View, sample: Example = "finals", scroll = false) {
-    const search = next === "examples" ? `?example=${sample}` : next === "query" ? "/" : `?view=${next}`;
+    const search = next === "examples" ? `?example=${sample}` : next === "brief" ? "/" : `?view=${next}`;
     if (next !== view || sample !== example) window.history.pushState(null, "", search);
     setLocationState({ view: next, example: sample });
     setCitation(null);
@@ -302,6 +302,15 @@ export default function App() {
   const traceEvents = useMemo(() => result?.events ?? (active?.mode === view ? events : []), [active, events, result, view]);
   const currentRunning = active?.mode === view;
   const runOptions = view !== "examples" && view !== "history";
+  const agentGraph = (
+    <AgentGraph
+      initiallyOpen={view === "brief"}
+      title={language === "fr" ? "Graphe des agents" : "Agent graph"}
+      loadingText={t.loading}
+      statuses={statuses}
+      models={models}
+    />
+  );
   const recordedDate = recorded ? new Date(recorded.started_at).toLocaleDateString(language, { dateStyle: "long" }) : null;
 
   return (
@@ -350,11 +359,12 @@ export default function App() {
 
         <section className="workspace space-y-4" ref={workspace} aria-label={t.views[view]}>
           <nav className="mode-nav" aria-label={language === "fr" ? "Modes de la démo" : "Demo modes"}>
-            {(["query", "brief", "compare", "examples"] as const).map((item) => (
+            {(["brief", "query", "compare", "examples"] as const).map((item) => (
               <button type="button" key={item} aria-current={view === item ? "page" : undefined} onClick={() => move(item)}>{t.views[item]}</button>
             ))}
           </nav>
           {accountError && <p className="notice-error" role="alert">{t.accountError}</p>}
+          {view === "brief" && agentGraph}
           {runOptions && (
             <>
               <section className="card space-y-3">
@@ -404,14 +414,7 @@ export default function App() {
               {result && <SourcesBibliography citations={result.source_citations} language={language} activeId={citation} />}
               {(currentRunning || traceEvents.length > 0) && <Trace events={traceEvents} metrics={result?.metrics} t={t} language={language} open={currentRunning || citation != null} />}
               {result?.metrics && <RunMetricsPanel metrics={result.metrics} language={language} />}
-              {(view === "brief" || view === "compare") && (
-                <AgentGraph
-                  title={language === "fr" ? "Graphe des agents" : "Agent graph"}
-                  loadingText={t.loading}
-                  statuses={statuses}
-                  models={models}
-                />
-              )}
+              {view === "compare" && agentGraph}
             </>
           )}
           {view === "examples" && (
@@ -465,11 +468,15 @@ export default function App() {
   );
 }
 
-function AgentGraph({ title, loadingText, ...flow }: FlowProps & { title: string; loadingText: string }) {
-  const [open, setOpen] = useState(false);
+function AgentGraph({ title, loadingText, initiallyOpen, ...flow }: FlowProps & {
+  title: string;
+  loadingText: string;
+  initiallyOpen: boolean;
+}) {
+  const [open, setOpen] = useState(initiallyOpen);
 
   return (
-    <details className="card" onToggle={(event) => setOpen(event.currentTarget.open)}>
+    <details className="card" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="section-title">{title}</summary>
       {open && (
         <Suspense fallback={<p>{loadingText}</p>}>
